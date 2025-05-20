@@ -1,0 +1,70 @@
+Program → PPList DeclList StmtList
+PPList → PPDirective PPList
+PPList → ε
+DeclList → Decl DeclList
+DeclList → ε
+PPDirective → # include < ID . ID >
+Decl → Type ID DeclTail
+DeclTail → ( ParamList ) CompoundStmt
+DeclTail → VarDeclPrime
+VarDeclPrime → = Expr ;
+VarDeclPrime → ;
+Type → int
+Type → float
+Type → void
+ParamList → Param ParamListTail
+ParamList → ε
+ParamListTail → , Param ParamListTail
+ParamListTail → ε
+Param → Type ID
+Stmt → Decl
+Stmt → AssignStmt
+Stmt → ExprStmt
+Stmt → CompoundStmt
+Stmt → IfStmt
+Stmt → WhileStmt
+Stmt → ReturnStmt
+AssignStmt → ID = Expr ;
+ExprStmt → Expr ;
+ExprStmt → ;
+IfStmt → if ( Expr ) Stmt ElseStmt
+ElseStmt → else Stmt
+ElseStmt → ε
+WhileStmt → while ( Expr ) Stmt
+ReturnStmt → return Expr ;
+CompoundStmt → { DeclList StmtList }
+StmtList → Stmt StmtList
+StmtList → ε
+Expr → ExprOr
+ExprOr → ExprAnd ExprOrTail
+ExprOrTail → || ExprAnd ExprOrTail
+ExprOrTail → ε
+ExprAnd → ExprRel ExprAndTail
+ExprAndTail → && ExprRel ExprAndTail
+ExprAndTail → ε
+ExprRel → ExprAdd ExprRelTail
+ExprRelTail → == ExprAdd ExprRelTail
+ExprRelTail → != ExprAdd ExprRelTail
+ExprRelTail → <= ExprAdd ExprRelTail
+ExprRelTail → >= ExprAdd ExprRelTail
+ExprRelTail → < ExprAdd ExprRelTail
+ExprRelTail → > ExprAdd ExprRelTail
+ExprRelTail → ε
+ExprAdd → ExprMul ExprAddTail
+ExprAddTail → + ExprMul ExprAddTail
+ExprAddTail → - ExprMul ExprAddTail
+ExprAddTail → ε
+ExprMul → ExprUnary ExprMulTail
+ExprMulTail → * ExprUnary ExprMulTail
+ExprMulTail → / ExprUnary ExprMulTail
+ExprMulTail → ε
+ExprPrimary → ID
+ExprPrimary → INT_LITERAL
+ExprPrimary → FLOAT_LITERAL
+ExprUnary → ( CastOrExpr
+ExprUnary → + ExprUnary
+ExprUnary → - ExprUnary
+ExprUnary → ! ExprUnary
+ExprUnary → ExprPrimary
+CastOrExpr → Type ) ExprUnary
+CastOrExpr → Expr )
