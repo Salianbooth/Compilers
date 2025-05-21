@@ -146,7 +146,7 @@ def is_valid_float(num: str) -> bool:
 
 def build_error(message: str, token: str, pos: int, source_code: str) -> str:
     line = source_code.count('\n', 0, pos) + 1
-    return f"第{line}行：{message} “{token}”"
+    return f'第{line}行：{message} "{token}"'
 
 def lexical_analysis(source_code: str):
     tokens = []
@@ -444,6 +444,9 @@ TOKEN_NAME = {
     float_code:     'FLOAT_LITERAL',
     string_code:    'STRING_LITERAL',
     char_code:      'CHAR_LITERAL',
+    # 确保分隔符被正确映射
+    50: '(',  # 左括号
+    51: ')',  # 右括号
 }
 
 

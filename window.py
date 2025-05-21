@@ -1,5 +1,6 @@
 # window.py
 import sys
+import os
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QAction, QFileDialog, QTextEdit,
     QSplitter, QWidget, QPlainTextEdit
@@ -12,13 +13,10 @@ from manual_lexer import tokens_to_terminals
 from auto_lexer import lexer, analyze
 
 # window.py 或者其他脚本里
-from Compilers.ll_parser import (
-    parse_with_tree,
-    Grammar,
-    build_parse_table,
-    load_grammar_from_file,
-    cst_to_ast
-)
+from Compilers.ll_parser.core.ll_main import parse_with_tree
+from Compilers.ll_parser.core.grammar_oop import Grammar, load_grammar_from_file
+from Compilers.ll_parser.core.parse_table import build_parse_table
+from Compilers.ll_parser.core.parse_tree import cst_to_ast
 
 
 
@@ -108,7 +106,10 @@ class MainWindow(QMainWindow):
         self.analysis_mode = '手动'
         # 构建文法与预测表，只做一次
         self.grammar = Grammar()
-        load_grammar_from_file('Compilers/ll_parser/CFG.txt', self.grammar)
+        # 获取当前文件所在目录的路径
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        cfg_path = os.path.join(current_dir, 'll_parser', 'examples', 'CFG.txt')
+        load_grammar_from_file(cfg_path, self.grammar)
         self.grammar.finalize(eliminate_lr=True, left_fact=True)
         self.table, self.is_ll1, self.terminals = build_parse_table(self.grammar, start_symbol='Program')
         self.initUI()
