@@ -17,6 +17,7 @@ from Compilers.ll_parser.core.ll_main import parse_with_tree
 from Compilers.ll_parser.core.grammar_oop import Grammar, load_grammar_from_file
 from Compilers.ll_parser.core.parse_table import build_parse_table
 from Compilers.ll_parser.core.parse_tree import cst_to_ast
+from Compilers.semantic_analyzer import run_semantic_analysis
 
 
 
@@ -115,7 +116,7 @@ class MainWindow(QMainWindow):
         self.initUI()
 
     def initUI(self):
-        self.setWindowTitle('词法 & 语法 分析器')
+        self.setWindowTitle('词法 & 语法 & 语义 分析器')
         self.setGeometry(850, 200, 1200, 800)
 
         menubar = self.menuBar()
@@ -131,6 +132,9 @@ class MainWindow(QMainWindow):
         syntax_action = QAction('语法分析', self)
         syntax_action.triggered.connect(self.syntax_analysis)
         menubar.addAction(syntax_action)
+        semantic_action = QAction('语义分析', self)
+        semantic_action.triggered.connect(self.semantic_analysis)
+        menubar.addAction(semantic_action)
 
         mode_menu = menubar.addMenu('词法模式')
         manual_action = QAction('手动分析', self)
@@ -164,7 +168,7 @@ class MainWindow(QMainWindow):
         left_splitter.setSizes([600, 200])
         main_splitter.addWidget(left_splitter)
 
-        # 右侧：词法 + 语法
+        # 右侧：词法 + 语法 + 语义
         right_splitter = QSplitter(Qt.Vertical)
         self.lex_text_edit = QTextEdit()
         self.lex_text_edit.setReadOnly(True)
@@ -176,7 +180,12 @@ class MainWindow(QMainWindow):
         self.syntax_text_edit.setPlaceholderText("语法分析结果")
         self.syntax_text_edit.setFont(QFont("Courier New", 10))
         right_splitter.addWidget(self.syntax_text_edit)
-        right_splitter.setSizes([300, 300])
+        self.semantic_text_edit = QTextEdit()
+        self.semantic_text_edit.setReadOnly(True)
+        self.semantic_text_edit.setPlaceholderText("语义分析结果")
+        self.semantic_text_edit.setFont(QFont("Courier New", 10))
+        right_splitter.addWidget(self.semantic_text_edit)
+        right_splitter.setSizes([200, 200, 200])
         main_splitter.addWidget(right_splitter)
 
         main_splitter.setSizes([500, 500])
@@ -278,6 +287,76 @@ class MainWindow(QMainWindow):
             info = f"语法错误，原因: {msg}"
             self.syntax_text_edit.clear()
             self.error_text_edit.setPlainText(info)
+
+    def semantic_analysis(self):
+        """执行语义分析"""
+        try:
+            # 先进行词法分析
+            source = self.source_text_edit.toPlainText()
+            tokens, lex_errs = manual_lexical_analysis(source)
+            if lex_errs:
+                self.error_text_edit.setPlainText(
+                    "词法错误，无法进行语义分析:\n" + "\n".join(lex_errs)
+                )
+                return
+
+            # 把 tokens 拆成两并行数组
+            terms_only = tokens_to_terminals(tokens)
+            lexemes_only = [lexeme for (_, lexeme) in tokens]
+            term_pairs = list(zip(terms_only, lexemes_only))
+
+            # 进行语法分析获取语法树
+            try:
+                cst = parse_with_tree(term_pairs, self.grammar, self.table, 'Program')
+                ast = cst_to_ast(cst)
+            except SyntaxError as e:
+                msg = e.args[0] if e.args else str(e)
+                self.error_text_edit.setPlainText(f"语法错误，无法进行语义分析: {msg}")
+                return
+            
+            # 执行语义分析
+            symbol_tables = run_semantic_analysis(ast)
+            
+            # 显示符号表
+            result = "语义分析结果：\n\n"
+            
+            # 显示常量表
+            result += "常量表：\n"
+            result += "name   type     value        scope\n"
+            result += "----------------------------------------\n"
+            for name, info in sorted(symbol_tables['constants'].items(), key=lambda x: int(x[0][1:])):
+                result += f"{name:<8} {info['type']:<8} {info['value']:<12} {info['scope']}\n"
+            result += "\n"
+            
+            # 显示字符串表
+            result += "字符串表：\n"
+            result += "name   string               scope\n"
+            result += "----------------------------------------\n"
+            for name, info in symbol_tables['strings'].items():
+                result += f"{name:<8} {info['string']:<20} {info['scope']}\n"
+            result += "\n"
+            
+            # 显示变量表
+            result += "变量表：\n"
+            result += "name        type     scope\n"
+            result += "----------------------------------------\n"
+            for name, info in sorted(symbol_tables['variables'].items()):
+                result += f"{name:<12} {info['type']:<8} {info['scope']}\n"
+            result += "\n"
+            
+            # 显示函数表
+            result += "函数表：\n"
+            result += "name       retType  #params  paramTypes      scope\n"
+            result += "----------------------------------------\n"
+            for name, info in sorted(symbol_tables['functions'].items()):
+                result += f"{name:<12} {info['retType']:<8} {info['#params']:<8} {str(info['paramTypes']):<15} {info['scope']}\n"
+            
+            self.semantic_text_edit.setPlainText(result)
+            self.error_text_edit.setPlainText("语义分析成功，无错误。")
+            
+        except Exception as e:
+            self.error_text_edit.setPlainText(f"语义分析错误：{str(e)}")
+            self.semantic_text_edit.clear()
 
 
 if __name__ == '__main__':
