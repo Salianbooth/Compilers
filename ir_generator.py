@@ -338,27 +338,35 @@ class IRBuilder:
                     
                     # 处理右操作数 factorial(n-1)
                     if right_node.label == 'Call' and right_node.value == 'factorial':
-                        # 计算 n-1
-                        if len(right_node.children) > 0 and right_node.children[0].label == 'ExprSub':
-                            sub_node = right_node.children[0]
-                            left_sub = self.gen(sub_node.children[0])  # n
-                            one_temp = self.new_temp()
-                            self.emit('LOAD_CONST', '1', None, one_temp)  # 1
-                            n_minus_one = self.new_temp()
-                            self.emit('SUB', left_sub, one_temp, n_minus_one)  # n-1
+                        # 找到函数参数 (n-1)
+                        if len(right_node.children) > 0:
+                            arg_node = right_node.children[0]
                             
-                            # 调用 factorial(n-1)
-                            self.emit('PARAM', n_minus_one, None, None)
-                            fact_temp = self.new_temp()
-                            self.emit('CALL', 'factorial', '1', fact_temp)
-                            
-                            # 计算 n * factorial(n-1)
-                            result_temp = self.new_temp()
-                            self.emit('MUL', n_temp, fact_temp, result_temp)
-                            
-                            # 返回结果
-                            self.emit('RETURN', result_temp, None, None)
-                            return True
+                            # 如果参数是减法表达式 n-1
+                            if arg_node.label == 'ExprSub':
+                                # 获取 n
+                                var_temp = self.gen(arg_node.children[0])
+                                # 获取 1
+                                const_temp = self.new_temp()
+                                self.emit('LOAD_CONST', '1', None, const_temp)
+                                # 计算 n-1
+                                n_minus_one = self.new_temp()
+                                self.emit('SUB', var_temp, const_temp, n_minus_one)
+                                
+                                # 传递参数
+                                self.emit('PARAM', n_minus_one, None, None)
+                                
+                                # 调用函数
+                                fact_result = self.new_temp()
+                                self.emit('CALL', 'factorial', '1', fact_result)
+                                
+                                # 计算乘法
+                                mul_result = self.new_temp()
+                                self.emit('MUL', n_temp, fact_result, mul_result)
+                                
+                                # 返回结果
+                                self.emit('RETURN', mul_result, None, None)
+                                return True
                 
                 # 一般返回语句处理
                 ret_val = self.gen(ret_node)
@@ -382,8 +390,10 @@ class IRBuilder:
                 
                 # 处理函数调用赋值，如 result = factorial(x)
                 if expr_node.label == 'Call':
-                    # 处理函数参数
+                    func_name = expr_node.value
                     args = []
+                    
+                    # 处理函数参数
                     for arg in expr_node.children:
                         if arg.label not in [';', '(', ')']:
                             arg_temp = self.gen(arg)
@@ -393,7 +403,7 @@ class IRBuilder:
                     
                     # 生成函数调用
                     call_temp = self.new_temp()
-                    self.emit('CALL', expr_node.value, str(len(args)), call_temp)
+                    self.emit('CALL', func_name, str(len(args)), call_temp)
                     
                     # 存储返回值
                     self.emit('STORE_VAR', call_temp, None, var_node.value)
@@ -412,21 +422,10 @@ class IRBuilder:
             # 处理参数
             for arg in node.children:
                 if arg.label not in [';', '(', ')']:
-                    # 特殊处理：如果参数是表达式，如 n-1
-                    if arg.label in ['ExprAdd', 'ExprSub', 'ExprMul', 'ExprDiv', 'ExprMod', 'ExprRel', 'ExprEq']:
-                        if len(arg.children) >= 3:  # 二元运算至少有3个子节点
-                            left = self.gen(arg.children[0])
-                            op_node = arg.children[1]
-                            right = self.gen(arg.children[2])
-                            arg_temp = self.gen_binary_op(arg, op_node, left, right)
-                            if arg_temp:
-                                self.emit('PARAM', arg_temp, None, None)
-                                args.append(arg_temp)
-                    else:
-                        arg_temp = self.gen(arg)
-                        if arg_temp:
-                            self.emit('PARAM', arg_temp, None, None)
-                            args.append(arg_temp)
+                    arg_temp = self.gen(arg)
+                    if arg_temp:
+                        self.emit('PARAM', arg_temp, None, None)
+                        args.append(arg_temp)
             
             # 生成调用指令
             ret_temp = self.new_temp()
