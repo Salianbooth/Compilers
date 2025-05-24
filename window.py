@@ -18,6 +18,8 @@ from Compilers.ll_parser.core.grammar_oop import Grammar, load_grammar_from_file
 from Compilers.ll_parser.core.parse_table import build_parse_table
 from Compilers.ll_parser.core.parse_tree import cst_to_ast
 from Compilers.semantic_analyzer import run_semantic_analysis
+from Compilers.ir_generator import IRBuilder
+from Compilers.compiler import Compiler, format_quads, format_string_literals
 
 
 
@@ -105,18 +107,12 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.analysis_mode = '手动'
-        # 构建文法与预测表，只做一次
-        self.grammar = Grammar()
-        # 获取当前文件所在目录的路径
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        cfg_path = os.path.join(current_dir, 'll_parser', 'examples', 'CFG.txt')
-        load_grammar_from_file(cfg_path, self.grammar)
-        self.grammar.finalize(eliminate_lr=True, left_fact=True)
-        self.table, self.is_ll1, self.terminals = build_parse_table(self.grammar, start_symbol='Program')
+        # 初始化编译器
+        self.compiler = Compiler()
         self.initUI()
 
     def initUI(self):
-        self.setWindowTitle('词法 & 语法 & 语义 分析器')
+        self.setWindowTitle('词法 & 语法 & 语义 & 中间代码 分析器')
         self.setGeometry(850, 200, 1200, 800)
 
         menubar = self.menuBar()
@@ -135,6 +131,12 @@ class MainWindow(QMainWindow):
         semantic_action = QAction('语义分析', self)
         semantic_action.triggered.connect(self.semantic_analysis)
         menubar.addAction(semantic_action)
+        ir_action = QAction('中间代码生成', self)
+        ir_action.triggered.connect(self.ir_generation)
+        menubar.addAction(ir_action)
+        compile_action = QAction('一键编译', self)
+        compile_action.triggered.connect(self.compile_all)
+        menubar.addAction(compile_action)
 
         mode_menu = menubar.addMenu('词法模式')
         manual_action = QAction('手动分析', self)
@@ -168,7 +170,7 @@ class MainWindow(QMainWindow):
         left_splitter.setSizes([600, 200])
         main_splitter.addWidget(left_splitter)
 
-        # 右侧：词法 + 语法 + 语义
+        # 右侧：词法 + 语法 + 语义 + 中间代码
         right_splitter = QSplitter(Qt.Vertical)
         self.lex_text_edit = QTextEdit()
         self.lex_text_edit.setReadOnly(True)
@@ -185,7 +187,12 @@ class MainWindow(QMainWindow):
         self.semantic_text_edit.setPlaceholderText("语义分析结果")
         self.semantic_text_edit.setFont(QFont("Courier New", 10))
         right_splitter.addWidget(self.semantic_text_edit)
-        right_splitter.setSizes([200, 200, 200])
+        self.ir_text_edit = QTextEdit()
+        self.ir_text_edit.setReadOnly(True)
+        self.ir_text_edit.setPlaceholderText("中间代码生成结果")
+        self.ir_text_edit.setFont(QFont("Courier New", 10))
+        right_splitter.addWidget(self.ir_text_edit)
+        right_splitter.setSizes([150, 150, 150, 150])
         main_splitter.addWidget(right_splitter)
 
         main_splitter.setSizes([500, 500])
@@ -262,7 +269,7 @@ class MainWindow(QMainWindow):
 
         try:
             # 传入 (类型, 文本) 对列表
-            cst = parse_with_tree(term_pairs, self.grammar, self.table, 'Program')
+            cst = parse_with_tree(term_pairs, self.compiler.grammar, self.compiler.table, 'Program')
             ast = cst_to_ast(cst)
 
             # 递归构造打印字符串
@@ -307,7 +314,7 @@ class MainWindow(QMainWindow):
 
             # 进行语法分析获取语法树
             try:
-                cst = parse_with_tree(term_pairs, self.grammar, self.table, 'Program')
+                cst = parse_with_tree(term_pairs, self.compiler.grammar, self.compiler.table, 'Program')
                 ast = cst_to_ast(cst)
             except SyntaxError as e:
                 msg = e.args[0] if e.args else str(e)
@@ -357,6 +364,141 @@ class MainWindow(QMainWindow):
         except Exception as e:
             self.error_text_edit.setPlainText(f"语义分析错误：{str(e)}")
             self.semantic_text_edit.clear()
+
+    def ir_generation(self):
+        """执行中间代码生成"""
+        try:
+            # 先进行词法分析
+            source = self.source_text_edit.toPlainText()
+            tokens, lex_errs = manual_lexical_analysis(source)
+            if lex_errs:
+                self.error_text_edit.setPlainText(
+                    "词法错误，无法进行中间代码生成:\n" + "\n".join(lex_errs)
+                )
+                return
+
+            # 把 tokens 拆成两并行数组
+            terms_only = tokens_to_terminals(tokens)
+            lexemes_only = [lexeme for (_, lexeme) in tokens]
+            term_pairs = list(zip(terms_only, lexemes_only))
+
+            # 进行语法分析获取语法树
+            try:
+                cst = parse_with_tree(term_pairs, self.compiler.grammar, self.compiler.table, 'Program')
+                ast = cst_to_ast(cst)
+            except SyntaxError as e:
+                msg = e.args[0] if e.args else str(e)
+                self.error_text_edit.setPlainText(f"语法错误，无法进行中间代码生成: {msg}")
+                return
+            
+            # 执行中间代码生成
+            irb = IRBuilder()
+            irb.gen(ast)
+            quads = irb.get_quads()
+            string_literals = irb.get_string_literals()
+            
+            # 显示中间代码
+            result = format_quads(quads)
+            result += "\n"
+            result += format_string_literals(string_literals)
+            
+            self.ir_text_edit.setPlainText(result)
+            self.error_text_edit.setPlainText("中间代码生成成功，无错误。")
+            
+        except Exception as e:
+            self.error_text_edit.setPlainText(f"中间代码生成错误：{str(e)}")
+            self.ir_text_edit.clear()
+
+    def compile_all(self):
+        """一键执行完整编译过程"""
+        source = self.source_text_edit.toPlainText()
+        result = self.compiler.compile(source, self.analysis_mode)
+        
+        if result['status'] == 'success':
+            # 显示词法分析结果
+            lines = ["序号\t单词\t种别码", "-"*40]
+            for i, (syn, tok) in enumerate(result['tokens'], start=1):
+                if syn == 0: continue
+                if 1 <= syn < 17:
+                    typ = "关键字"
+                elif 20 <= syn < 44:
+                    typ = "运算符"
+                elif 50 <= syn < 64:
+                    typ = "分隔符"
+                elif syn == 45:
+                    typ = "标识符"
+                elif syn == 46:
+                    typ = "整数"
+                elif syn == 47:
+                    typ = "浮点数"
+                elif syn == 48:
+                    typ = "字符串"
+                else:
+                    typ = "未知"
+                lines.append(f"{i}\t{tok}\t{typ}({syn})")
+            self.lex_text_edit.setPlainText("\n".join(lines))
+            
+            # 显示语法分析结果
+            out = []
+            def recurse(n, pref='', last=True):
+                conn = '└─ ' if last else '├─ '
+                if n.value is not None and n.is_leaf():
+                    out.append(f"{pref}{conn}{n.label}: {n.value}")
+                else:
+                    out.append(f"{pref}{conn}{n.label}")
+                newp = pref + ('   ' if last else '│  ')
+                for i, ch in enumerate(n.children):
+                    recurse(ch, newp, i == len(n.children) - 1)
+            recurse(result['ast'])
+            self.syntax_text_edit.setPlainText("\n".join(out))
+            
+            # 显示语义分析结果
+            symbol_tables = result['symbol_tables']
+            sem_result = "语义分析结果：\n\n"
+            
+            # 显示常量表
+            sem_result += "常量表：\n"
+            sem_result += "name   type     value        scope\n"
+            sem_result += "----------------------------------------\n"
+            for name, info in sorted(symbol_tables['constants'].items(), key=lambda x: int(x[0][1:])):
+                sem_result += f"{name:<8} {info['type']:<8} {info['value']:<12} {info['scope']}\n"
+            sem_result += "\n"
+            
+            # 显示字符串表
+            sem_result += "字符串表：\n"
+            sem_result += "name   string               scope\n"
+            sem_result += "----------------------------------------\n"
+            for name, info in symbol_tables['strings'].items():
+                sem_result += f"{name:<8} {info['string']:<20} {info['scope']}\n"
+            sem_result += "\n"
+            
+            # 显示变量表
+            sem_result += "变量表：\n"
+            sem_result += "name        type     scope\n"
+            sem_result += "----------------------------------------\n"
+            for name, info in sorted(symbol_tables['variables'].items()):
+                sem_result += f"{name:<12} {info['type']:<8} {info['scope']}\n"
+            sem_result += "\n"
+            
+            # 显示函数表
+            sem_result += "函数表：\n"
+            sem_result += "name       retType  #params  paramTypes      scope\n"
+            sem_result += "----------------------------------------\n"
+            for name, info in sorted(symbol_tables['functions'].items()):
+                sem_result += f"{name:<12} {info['retType']:<8} {info['#params']:<8} {str(info['paramTypes']):<15} {info['scope']}\n"
+            
+            self.semantic_text_edit.setPlainText(sem_result)
+            
+            # 显示中间代码
+            ir_result = format_quads(result['quads'])
+            ir_result += "\n"
+            ir_result += format_string_literals(result['string_literals'])
+            
+            self.ir_text_edit.setPlainText(ir_result)
+            
+            self.error_text_edit.setPlainText("编译成功，无错误。")
+        else:
+            self.error_text_edit.setPlainText(f"编译失败: {result['error']}")
 
 
 if __name__ == '__main__':
