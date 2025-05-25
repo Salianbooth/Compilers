@@ -204,7 +204,7 @@ def main():
 
     # 测试源程序
     sample_sources = [
-        'for(i = 0;i<2;i++){}',
+        ' for(i=1; i<=N; i=i+1){if(i%2 == 1) sum = sum+i;}',
     ]
     for src in sample_sources:
         print('\nSource:', src)

@@ -229,169 +229,209 @@ class CodeGenerator:
         instructions = []
         
         # 记录使用的变量
-        if arg1 and not arg1.isdigit():
+        if arg1 and not (arg1.isdigit() or arg1.startswith('_')):
             if arg1.startswith('T'):
                 self.used_temps.add(arg1)
             else:
                 self.used_variables.add(arg1)
-        if arg2 and not arg2.isdigit():
+        if arg2 and not (arg2.isdigit() or arg2.startswith('_')):
             if arg2.startswith('T'):
                 self.used_temps.add(arg2)
             else:
                 self.used_variables.add(arg2)
-        if result:
+        if result and not result.startswith('_'):
             if result.startswith('T'):
                 self.used_temps.add(result)
             else:
                 self.used_variables.add(result)
-        
-        # 处理赋值操作
-        if op == '=':
-            if arg1.isdigit():  # 立即数
-                instructions.extend([
-                    f"MOV AX,{arg1}",
-                    f"MOV {result},AX"
-                ])
-            else:  # 变量
-                instructions.extend([
-                    f"MOV AX,{arg1}",
-                    f"MOV {result},AX"
-                ])
-        
-        # 处理算术运算
-        elif op in ['+', '-', '*', '/', '%']:
-            if op == '+':
-                instructions.extend([
-                    f"MOV AX,{arg1}",
-                    f"ADD AX,{arg2}",
-                    f"MOV {result},AX"
-                ])
-            elif op == '-':
-                instructions.extend([
-                    f"MOV AX,{arg1}",
-                    f"SUB AX,{arg2}",
-                    f"MOV {result},AX"
-                ])
-            elif op == '*':
-                if arg2.isdigit():  # 立即数乘法
-                    instructions.extend([
-                        f"MOV AX,{arg1}",
-                        f"MUL {arg2}",
-                        f"MOV {result},AX"
-                    ])
-                else:  # 变量乘法
-                    instructions.extend([
-                        f"MOV AX,{arg1}",
-                        f"MUL {arg2}",
-                        f"MOV {result},AX"
-                    ])
-            elif op == '/':
-                instructions.extend([
-                    f"MOV AX,{arg1}",
-                    "MOV DX,0",
-                    f"DIV {arg2}",
-                    f"MOV {result},AX"
-                ])
-            elif op == '%':
-                instructions.extend([
-                    f"MOV AX,{arg1}",
-                    "MOV DX,0",
-                    f"DIV {arg2}",
-                    f"MOV {result},DX"
-                ])
-        
-        # 处理比较运算
-        elif op in ['<', '<=', '>', '>=', '==', '!=']:
-            label = self.new_label('LE')
-            instructions.extend([
-                "MOV DX,1",  # 默认结果为1
-                f"MOV AX,{arg1}",
-                f"CMP AX,{arg2}"
-            ])
-            
-            # 根据比较结果设置标志位
-            if op == '<':
-                instructions.append(f"JL {label}")
-            elif op == '<=':
-                instructions.append(f"JLE {label}")
-            elif op == '>':
-                instructions.append(f"JG {label}")
-            elif op == '>=':
-                instructions.append(f"JGE {label}")
-            elif op == '==':
-                instructions.append(f"JE {label}")
-            elif op == '!=':
-                instructions.append(f"JNE {label}")
-            
-            instructions.extend([
-                "MOV DX,0",  # 不满足条件时结果为0
-                f"{label}:",
-                f"MOV {result},DX"
-            ])
-        
-        # 处理跳转指令
-        elif op in ['j', 'jnz', 'jz']:
-            if op == 'j':
-                instructions.append(f"JMP _T{self.current_test}_LABEL{result}")
-            elif op == 'jnz':
-                instructions.extend([
-                    f"MOV AX,{arg1}",
-                    "CMP AX,0",
-                    f"JNE _T{self.current_test}_LABEL{result}"
-                ])
-            elif op == 'jz':
-                instructions.extend([
-                    f"MOV AX,{arg1}",
-                    "CMP AX,0",
-                    f"JE _T{self.current_test}_LABEL{result}"
-                ])
-        
-        # 处理函数调用
-        elif op == 'call':
-            if arg1 == 'read':
-                instructions.append("CALL read")
-            elif arg1 == 'write':
-                instructions.append("CALL write")
-            else:
-                instructions.append(f"CALL {arg1}")
-            if result:
-                instructions.append(f"MOV {result},AX")
-        
-        # 处理参数传递
-        elif op == 'para':
-            instructions.append(f"PUSH {arg1}")
-            if self.current_function:
-                self.function_param_count[self.current_function] = self.function_param_count.get(self.current_function, 0) + 1
-        
-        # 处理函数定义
-        elif op == 'fun':
+
+        # 函数相关指令
+        if op == 'FUNC_BEGIN':
             self.current_function = arg1
-            self.function_local_size[arg1] = int(arg2) if arg2 else 0
-            self.function_temp_count[arg1] = 0
-            self.function_param_count[arg1] = 0
-            instructions.extend([
-                f"{arg1}: PUSH BP",
-                "MOV BP,SP",
-                f"SUB SP,{self.function_local_size[arg1]}"  # 为局部变量分配空间
-            ])
-        
-        # 处理函数返回
-        elif op == 'ret':
+            if arg1 == 'main':
+                instructions.extend([
+                    "assume cs:code,ds:data,ss:stack,es:extended",
+                    "include io.inc",
+                    "code segment",
+                    "start:",
+                    "    mov ax,data",
+                    "    mov ds,ax",
+                    "    mov ax,stack",
+                    "    mov ss,ax",
+                    "    mov sp,1024",
+                    "    mov bp,sp"
+                ])
+            else:
+                instructions.extend([
+                    f"proc_{arg1} proc",
+                    "    push bp",
+                    "    mov bp,sp"
+                ])
+        elif op == 'FUNC_END':
+            if arg1 == 'main':
+                instructions.extend([
+                    "    mov ah,4ch",
+                    "    int 21h",
+                    "code ends",
+                    "end start"
+                ])
+            else:
+                instructions.extend([
+                    "    mov sp,bp",
+                    "    pop bp",
+                    "    ret",
+                    f"proc_{arg1} endp"
+                ])
+
+        # 标签指令
+        elif op == 'LABEL':
+            if result:
+                instructions.append(f"{result}:")
+
+        # 跳转指令
+        elif op == 'JUMP':
+            if result:
+                instructions.append(f"    jmp {result}")
+        elif op == 'JUMP_IF_FALSE':
+            if arg1 and result:
+                instructions.extend([
+                    f"    mov ax,{self.get_var_ref(arg1)}",
+                    "    cmp ax,0",
+                    f"    je {result}"
+                ])
+        elif op == 'JUMP_IF_TRUE':
+            if arg1 and result:
+                instructions.extend([
+                    f"    mov ax,{self.get_var_ref(arg1)}",
+                    "    cmp ax,0",
+                    f"    jne {result}"
+                ])
+
+        # 变量操作指令
+        elif op == 'ALLOC':
+            if arg1:
+                self.allocate_variable(arg1)
+        elif op == 'LOAD_CONST':
+            if arg1 and result:
+                instructions.extend([
+                    f"    mov ax,{arg1}",
+                    f"    mov {self.get_var_ref(result)},ax"
+                ])
+        elif op == 'LOAD_VAR':
+            if arg1 and result:
+                instructions.extend([
+                    f"    mov ax,{self.get_var_ref(arg1)}",
+                    f"    mov {self.get_var_ref(result)},ax"
+                ])
+        elif op == 'STORE_VAR':
+            if arg1 and result:
+                instructions.extend([
+                    f"    mov ax,{self.get_var_ref(arg1)}",
+                    f"    mov {self.get_var_ref(result)},ax"
+                ])
+
+        # 算术运算指令
+        elif op == 'ADD':
+            if arg1 and arg2 and result:
+                instructions.extend([
+                    f"    mov ax,{self.get_var_ref(arg1)}",
+                    f"    add ax,{self.get_var_ref(arg2)}",
+                    f"    mov {self.get_var_ref(result)},ax"
+                ])
+        elif op == 'SUB':
+            if arg1 and arg2 and result:
+                instructions.extend([
+                    f"    mov ax,{self.get_var_ref(arg1)}",
+                    f"    sub ax,{self.get_var_ref(arg2)}",
+                    f"    mov {self.get_var_ref(result)},ax"
+                ])
+        elif op == 'MUL':
+            if arg1 and arg2 and result:
+                instructions.extend([
+                    f"    mov ax,{self.get_var_ref(arg1)}",
+                    f"    mov bx,{self.get_var_ref(arg2)}",
+                    "    imul bx",
+                    f"    mov {self.get_var_ref(result)},ax"
+                ])
+        elif op == 'DIV':
+            if arg1 and arg2 and result:
+                instructions.extend([
+                    "    xor dx,dx",
+                    f"    mov ax,{self.get_var_ref(arg1)}",
+                    f"    mov bx,{self.get_var_ref(arg2)}",
+                    "    idiv bx",
+                    f"    mov {self.get_var_ref(result)},ax"
+                ])
+        elif op == 'MOD':
+            if arg1 and arg2 and result:
+                instructions.extend([
+                    "    xor dx,dx",
+                    f"    mov ax,{self.get_var_ref(arg1)}",
+                    f"    mov bx,{self.get_var_ref(arg2)}",
+                    "    idiv bx",
+                    f"    mov {self.get_var_ref(result)},dx"  # 余数在dx中
+                ])
+
+        # 比较运算指令
+        elif op in ['EQ', 'NE', 'LT', 'LE', 'GT', 'GE']:
+            if arg1 and arg2 and result:
+                instructions.extend([
+                    f"    mov ax,{self.get_var_ref(arg1)}",
+                    f"    cmp ax,{self.get_var_ref(arg2)}"
+                ])
+                
+                # 生成条件跳转
+                true_label = self.new_label('TRUE')
+                end_label = self.new_label('END')
+                
+                if op == 'EQ':
+                    instructions.append(f"    je {true_label}")
+                elif op == 'NE':
+                    instructions.append(f"    jne {true_label}")
+                elif op == 'LT':
+                    instructions.append(f"    jl {true_label}")
+                elif op == 'LE':
+                    instructions.append(f"    jle {true_label}")
+                elif op == 'GT':
+                    instructions.append(f"    jg {true_label}")
+                elif op == 'GE':
+                    instructions.append(f"    jge {true_label}")
+                
+                instructions.extend([
+                    f"    mov {self.get_var_ref(result)},0",
+                    f"    jmp {end_label}",
+                    f"{true_label}:",
+                    f"    mov {self.get_var_ref(result)},1",
+                    f"{end_label}:"
+                ])
+
+        # 返回指令
+        elif op == 'RETURN':
             if arg1:
                 instructions.extend([
-                    f"MOV AX,{arg1}",
-                    "MOV SP,BP",
-                    "POP BP",
-                    "RET"
+                    f"    mov ax,{self.get_var_ref(arg1)}",
+                    "    mov sp,bp",
+                    "    pop bp",
+                    "    ret"
                 ])
             else:
                 instructions.extend([
-                    "MOV SP,BP",
-                    "POP BP",
-                    "RET"
+                    "    mov sp,bp",
+                    "    pop bp",
+                    "    ret"
                 ])
-        
+
         return instructions
+
+    def get_var_ref(self, var: str) -> str:
+        """获取变量的引用方式"""
+        if var.isdigit():
+            return var
+        if var.startswith('main_'):
+            var = var[5:]  # 去掉main_前缀
+        if var.startswith('t'):
+            return f"T{var[1:]}"  # 临时变量
+        return var  # 普通变量
     
     def generate_helper_functions(self):
         """生成辅助函数（read/write）"""

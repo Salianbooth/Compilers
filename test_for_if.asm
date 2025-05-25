@@ -20,6 +20,7 @@ T3      dw 0
 T4      dw 0
 T5      dw 0
 data ends
+_i dw 0
 
 include io.inc
 
@@ -33,75 +34,108 @@ start:
     mov ax,data
     mov ds,ax
 _T4_L0:
-main: PUSH BP
-MOV BP,SP
-SUB SP,0
+assume cs:code,ds:data,ss:stack,es:extended
+include io.inc
+code segment
+start:
+    mov ax,data
+    mov ds,ax
+    mov ax,stack
+    mov ss,ax
+    mov sp,1024
+    mov bp,sp
 _T4_L1:
-MOV AX,0
-MOV sum,AX
 _T4_L2:
-CALL read
-MOV T0,AX
 _T4_L3:
-MOV AX,T0
-MOV N,AX
+    mov ax,10
+    mov T0,ax
 _T4_L4:
-MOV AX,1
-MOV i,AX
+    mov ax,T0
+    mov N,ax
 _T4_L5:
-MOV DX,1
-MOV AX,i
-CMP AX,N
-JLE _T4_LE_0
-MOV DX,0
-_T4_LE_0:
-MOV T1,DX
+    mov ax,1
+    mov T1,ax
 _T4_L6:
-MOV AX,T1
-CMP AX,0
-JE _T4_LABEL19
+    mov ax,T1
+    mov i,ax
 _T4_L7:
-MOV AX,i
-MOV DX,0
-DIV 2
-MOV T3,DX
+main_L0:
 _T4_L8:
-MOV DX,1
-MOV AX,T3
-CMP AX,1
-JE _T4_LE_1
-MOV DX,0
-_T4_LE_1:
-MOV T4,DX
 _T4_L9:
-MOV AX,T4
-CMP AX,0
-JE _T4_LABEL12
+    mov ax,i
+    mov T2,ax
 _T4_L10:
-MOV AX,sum
-ADD AX,i
-MOV T5,AX
+    mov ax,2
+    mov T3,ax
 _T4_L11:
-MOV AX,T5
-MOV sum,AX
+    xor dx,dx
+    mov ax,T2
+    mov bx,T3
+    idiv bx
+    mov T4,dx
 _T4_L12:
-MOV AX,i
-ADD AX,1
-MOV T2,AX
+    mov ax,1
+    mov T5,ax
 _T4_L13:
-MOV AX,T2
-MOV i,AX
+    mov ax,T4
+    cmp ax,T5
+    je _T4_TRUE_0
+    mov T6,0
+    jmp _T4_END_1
+_T4_TRUE_0:
+    mov T6,1
+_T4_END_1:
 _T4_L14:
-JMP _T4_LABEL5
+    mov ax,T6
+    cmp ax,0
+    je main_L2
 _T4_L15:
-PUSH sum
+    mov ax,sum
+    mov T7,ax
 _T4_L16:
-CALL write
+    mov ax,i
+    mov T8,ax
 _T4_L17:
-MOV AX,0
-MOV SP,BP
-POP BP
-RET
+    mov ax,T7
+    add ax,T8
+    mov T9,ax
+_T4_L18:
+    mov ax,T9
+    mov sum,ax
+_T4_L19:
+main_L2:
+_T4_L20:
+    mov ax,i
+    mov T10,ax
+_T4_L21:
+    mov ax,N
+    mov T11,ax
+_T4_L22:
+    mov ax,T10
+    cmp ax,T11
+    jle _T4_TRUE_2
+    mov T12,0
+    jmp _T4_END_3
+_T4_TRUE_2:
+    mov T12,1
+_T4_END_3:
+_T4_L23:
+    jmp main_L0
+_T4_L24:
+main_L1:
+_T4_L25:
+    mov ax,0
+    mov T13,ax
+_T4_L26:
+    mov ax,T13
+    mov sp,bp
+    pop bp
+    ret
+_T4_L27:
+    mov ah,4ch
+    int 21h
+code ends
+end start
 quit:
     mov ah,4ch
     int 21h

@@ -1,5 +1,6 @@
 from typing import List, Optional, Tuple, Dict
 from dataclasses import dataclass
+from code_generator import Quadruple
 
 @dataclass
 class Node:
@@ -12,9 +13,6 @@ class Node:
     def __post_init__(self):
         if self.children is None:
             self.children = []
-
-# 使用四元式 (Quadruple) 表示 IR： (op, arg1, arg2, result)
-Quadruple = Tuple[str, Optional[str], Optional[str], Optional[str]]
 
 class IRBuilder:
     """中间代码生成器"""
@@ -43,11 +41,12 @@ class IRBuilder:
     def emit(self, op: str, arg1: Optional[str] = None,
              arg2: Optional[str] = None, result: Optional[str] = None) -> None:
         """生成一条四元式"""
+        quad = Quadruple(op=op, arg1=arg1, arg2=arg2, result=result)
         if self.current_func is None and op not in ['FUNC_BEGIN', 'FUNC_END', 'LABEL']:
             # 全局初始化相关的四元式
-            self.global_inits.append((op, arg1, arg2, result))
+            self.global_inits.append(quad)
         else:
-            self.quads.append((op, arg1, arg2, result))
+            self.quads.append(quad)
 
     def gen_binary_op(self, node: Node, op_node: Node, left: str, right: str) -> str:
         """处理二元运算"""
@@ -126,6 +125,111 @@ class IRBuilder:
 
         # 处理预处理指令
         if label == 'PPDirective':
+            return None
+
+        # 处理for循环
+        if label == 'ForStmt':
+            # 生成循环开始和结束标签
+            loop_start = self.new_label()
+            loop_end = self.new_label()
+            
+            # 初始化表达式
+            init_expr = None
+            cond_expr = None
+            incr_expr = None
+            body = None
+            
+            # 找到for循环的各个部分
+            for i, child in enumerate(node.children):
+                if child.label == 'for':
+                    continue
+                if child.label in ['(', ')', '{', '}']:
+                    continue
+                if init_expr is None:
+                    init_expr = child
+                elif cond_expr is None:
+                    cond_expr = child
+                elif incr_expr is None:
+                    incr_expr = child
+                else:
+                    body = child
+            
+            # 生成初始化代码
+            if init_expr:
+                self.gen(init_expr)
+            
+            # 生成循环开始标签
+            self.emit('LABEL', None, None, loop_start)
+            
+            # 生成条件判断代码
+            if cond_expr:
+                cond = self.gen(cond_expr)
+                self.emit('JUMP_IF_FALSE', cond, None, loop_end)
+            
+            # 生成循环体代码
+            if body:
+                self.gen(body)
+            
+            # 生成递增代码
+            if incr_expr:
+                self.gen(incr_expr)
+            
+            # 跳回循环开始
+            self.emit('JUMP', None, None, loop_start)
+            
+            # 生成循环结束标签
+            self.emit('LABEL', None, None, loop_end)
+            return None
+
+        # 处理赋值表达式
+        if label == 'ExprAssign':
+            if len(node.children) >= 3:
+                # 找到标识符和表达式
+                id_node = None
+                expr_node = None
+                for child in node.children:
+                    if child.label == 'ID':
+                        id_node = child
+                    elif child.label == '=':
+                        continue
+                    else:
+                        expr_node = child
+                
+                if id_node and expr_node:
+                    # 计算右侧表达式的值
+                    expr_temp = self.gen(expr_node)
+                    # 存储到变量
+                    self.emit('STORE_VAR', expr_temp, None, id_node.value)
+                    return expr_temp
+            return None
+
+        # 处理后缀表达式（如i++）
+        if label == 'ExprPostfix':
+            if len(node.children) >= 2:
+                # 找到标识符和操作符
+                id_node = None
+                op_node = None
+                for child in node.children:
+                    if child.label == 'ID':
+                        id_node = child
+                    elif child.label in ['++', '--']:
+                        op_node = child
+                
+                if id_node and op_node:
+                    # 加载变量的值
+                    temp1 = self.new_temp()
+                    self.emit('LOAD_VAR', id_node.value, None, temp1)
+                    
+                    # 生成新值
+                    temp2 = self.new_temp()
+                    if op_node.value == '++':
+                        self.emit('ADD', temp1, '1', temp2)
+                    else:  # '--'
+                        self.emit('SUB', temp1, '1', temp2)
+                    
+                    # 存储新值
+                    self.emit('STORE_VAR', temp2, None, id_node.value)
+                    return temp1  # 返回原值（后缀操作符的语义）
             return None
 
         # 函数定义

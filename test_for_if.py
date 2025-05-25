@@ -11,13 +11,12 @@ def test_for_if_sum():
     int main()
     {
         int i, N, sum = 0;
-        N = read();
-        for(i=1; i<=N; i=i+1)
+        N = 10;
+        for(i=1; i<=N; i++)
         {
             if(i%2 == 1)
                 sum = sum+i;
         }
-        write(sum);
         return 0;
     }
     """

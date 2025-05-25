@@ -4,9 +4,12 @@ PPList → ε
 DeclList → Decl DeclList
 DeclList → ε
 PPDirective → # include < ID . ID >
-Decl → Type ID DeclTail
+Decl → Type IDList
+IDList → ID DeclTail
 DeclTail → ( ParamList ) CompoundStmt
-DeclTail → VarDeclPrime
+DeclTail → VarDeclTail
+VarDeclTail → VarDeclPrime
+VarDeclTail → , IDList
 VarDeclPrime → = Expr ;
 VarDeclPrime → ;
 Type → int
