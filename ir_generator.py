@@ -127,6 +127,49 @@ class IRBuilder:
         if label == 'PPDirective':
             return None
 
+        # 处理read()和write()表达式
+        if label == 'ExprPrimary':
+            if len(node.children) >= 1 and node.children[0].label == 'read':
+                # 处理read()
+                temp = self.new_temp()
+                self.emit('CALL', 'read', '0', temp)
+                return temp
+            elif len(node.children) >= 2 and node.children[0].label == 'write':
+                # 处理write(expr)
+                expr_node = node.children[1]
+                expr_temp = self.gen(expr_node)
+                if expr_temp:
+                    self.emit('PARAM', expr_temp, None, None)
+                    self.emit('CALL', 'write', '1', None)
+                return None
+            elif node.value:
+                # 处理其他基本表达式（ID、字面量等）
+                temp = self.new_temp()
+                self.emit('LOAD_CONST', str(node.value), None, temp)
+                return temp
+            elif node.label == 'ID':
+                temp = self.new_temp()
+                self.emit('LOAD_VAR', node.value, None, temp)
+                return temp
+
+        # 处理表达式语句
+        if label == 'ExprStmt':
+            if len(node.children) >= 1:
+                return self.gen(node.children[0])
+            return None
+
+        # 处理赋值语句
+        if label == 'AssignStmt':
+            if len(node.children) >= 3:
+                id_node = node.children[0]
+                expr_node = node.children[2]
+                if id_node.label == 'ID':
+                    expr_temp = self.gen(expr_node)
+                    if expr_temp:
+                        self.emit('STORE_VAR', expr_temp, None, id_node.value)
+                    return expr_temp
+            return None
+
         # 处理for循环
         if label == 'ForStmt':
             # 生成循环开始和结束标签
@@ -156,7 +199,17 @@ class IRBuilder:
             
             # 生成初始化代码
             if init_expr:
-                self.gen(init_expr)
+                if init_expr.label == 'ExprAssign':
+                    # 处理i=1
+                    if len(init_expr.children) >= 2:
+                        id_node = init_expr.children[0]
+                        expr_node = init_expr.children[1]
+                        if id_node.label == 'ID':
+                            expr_temp = self.gen(expr_node)
+                            if expr_temp:
+                                self.emit('STORE_VAR', expr_temp, None, id_node.value)
+                else:
+                    self.gen(init_expr)
             
             # 生成循环开始标签
             self.emit('LABEL', None, None, loop_start)
@@ -164,7 +217,8 @@ class IRBuilder:
             # 生成条件判断代码
             if cond_expr:
                 cond = self.gen(cond_expr)
-                self.emit('JUMP_IF_FALSE', cond, None, loop_end)
+                if cond:
+                    self.emit('JUMP_IF_FALSE', cond, None, loop_end)
             
             # 生成循环体代码
             if body:
@@ -172,7 +226,19 @@ class IRBuilder:
             
             # 生成递增代码
             if incr_expr:
-                self.gen(incr_expr)
+                if incr_expr.label == 'ExprPostfix':
+                    # 处理i++
+                    if len(incr_expr.children) >= 2:
+                        id_node = incr_expr.children[0]
+                        op_node = incr_expr.children[1]
+                        if id_node.label == 'ID' and op_node.value == '++':
+                            temp1 = self.new_temp()
+                            self.emit('LOAD_VAR', id_node.value, None, temp1)
+                            temp2 = self.new_temp()
+                            self.emit('ADD', temp1, '1', temp2)
+                            self.emit('STORE_VAR', temp2, None, id_node.value)
+                else:
+                    self.gen(incr_expr)
             
             # 跳回循环开始
             self.emit('JUMP', None, None, loop_start)
@@ -181,27 +247,21 @@ class IRBuilder:
             self.emit('LABEL', None, None, loop_end)
             return None
 
-        # 处理赋值表达式
-        if label == 'ExprAssign':
-            if len(node.children) >= 3:
-                # 找到标识符和表达式
-                id_node = None
-                expr_node = None
-                for child in node.children:
-                    if child.label == 'ID':
-                        id_node = child
-                    elif child.label == '=':
-                        continue
-                    else:
-                        expr_node = child
-                
-                if id_node and expr_node:
-                    # 计算右侧表达式的值
-                    expr_temp = self.gen(expr_node)
-                    # 存储到变量
-                    self.emit('STORE_VAR', expr_temp, None, id_node.value)
-                    return expr_temp
+        # 处理write语句
+        if label == 'ExprPrimary' and len(node.children) >= 2 and node.children[0].label == 'write':
+            # 处理write(expr)
+            expr_node = node.children[1]
+            expr_temp = self.gen(expr_node)
+            if expr_temp:
+                self.emit('PARAM', expr_temp, None, None)
+                self.emit('CALL', 'write', '1', None)
             return None
+
+        # 处理ID节点
+        if label == 'ID':
+            temp = self.new_temp()
+            self.emit('LOAD_VAR', node.value, None, temp)
+            return temp
 
         # 处理后缀表达式（如i++）
         if label == 'ExprPostfix':
@@ -331,12 +391,6 @@ class IRBuilder:
         if label == 'INT_LITERAL':
             temp = self.new_temp()
             self.emit('LOAD_CONST', str(node.value), None, temp)
-            return temp
-
-        # 变量引用
-        if label == 'ID':
-            temp = self.new_temp()
-            self.emit('LOAD_VAR', node.value, None, temp)
             return temp
 
         # if 语句
@@ -486,37 +540,28 @@ class IRBuilder:
                 self.emit('RETURN', temp, None, None)
             return True
 
-        # 赋值语句
-        if label == 'AssignStmt':
-            children = [c for c in node.children if c.label not in [';', '=']]
-            if len(children) >= 2:
-                var_node, expr_node = children[0], children[1]
-                
-                # 处理函数调用赋值，如 result = factorial(x)
-                if expr_node.label == 'Call':
-                    func_name = expr_node.value
-                    args = []
-                    
-                    # 处理函数参数
-                    for arg in expr_node.children:
-                        if arg.label not in [';', '(', ')']:
-                            arg_temp = self.gen(arg)
-                            if arg_temp:
-                                self.emit('PARAM', arg_temp, None, None)
-                                args.append(arg_temp)
-                    
-                    # 生成函数调用
-                    call_temp = self.new_temp()
-                    self.emit('CALL', func_name, str(len(args)), call_temp)
-                    
-                    # 存储返回值
-                    self.emit('STORE_VAR', call_temp, None, var_node.value)
-                else:
-                    # 处理普通赋值
-                    rhs = self.gen(expr_node)
-                    if rhs:
-                        self.emit('STORE_VAR', rhs, None, var_node.value)
-                return None
+        # 处理比较运算
+        if label == 'ExprRel':
+            if len(node.children) >= 3:
+                left = self.gen(node.children[0])
+                op = node.children[1].value
+                right = self.gen(node.children[2])
+                if left and right:
+                    temp = self.new_temp()
+                    if op == '<=':
+                        self.emit('LE', left, right, temp)
+                    elif op == '>=':
+                        self.emit('GE', left, right, temp)
+                    elif op == '<':
+                        self.emit('LT', left, right, temp)
+                    elif op == '>':
+                        self.emit('GT', left, right, temp)
+                    elif op == '==':
+                        self.emit('EQ', left, right, temp)
+                    elif op == '!=':
+                        self.emit('NE', left, right, temp)
+                    return temp
+            return None
 
         # 函数调用
         if label == 'Call':

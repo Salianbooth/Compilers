@@ -28,7 +28,9 @@ Stmt → IfStmt
 Stmt → WhileStmt
 Stmt → ForStmt
 Stmt → ReturnStmt
+Stmt → CallStmt
 AssignStmt → ID = Expr ;
+CallStmt → ID ( ArgList ) ;
 ExprStmt → Expr ;
 ExprStmt → ;
 IfStmt → if ( Expr ) Stmt ElseStmt
@@ -87,6 +89,8 @@ ExprPrimary → INT_LITERAL
 ExprPrimary → FLOAT_LITERAL
 ExprPrimary → STRING_LITERAL
 ExprPrimary → CHAR_LITERAL
+ExprPrimary → read ( )
+ExprPrimary → write ( Expr )
 ArgList → Expr ArgListTail
 ArgList → ε
 ArgListTail → , Expr ArgListTail

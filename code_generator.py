@@ -330,6 +330,36 @@ class CodeGenerator:
                     f"    mov {self.get_var_ref(result)},ax"
                 ])
 
+        # 函数调用指令
+        elif op == 'CALL':
+            if arg1 == 'read':
+                # 调用read函数
+                instructions.extend([
+                    "    call read",
+                    f"    mov {self.get_var_ref(result)},ax"
+                ])
+            elif arg1 == 'write':
+                # 调用write函数
+                # 获取前一个四元式，它应该是PARAM指令
+                if len(self.quads) > 0:
+                    prev_quad = self.quads[-1]
+                    if prev_quad.op == 'PARAM':
+                        instructions.extend([
+                            f"    mov ax,{self.get_var_ref(prev_quad.arg1)}",
+                            "    call write"
+                        ])
+            else:
+                # 普通函数调用
+                instructions.extend([
+                    f"    call proc_{arg1}",
+                    f"    mov {self.get_var_ref(result)},ax"
+                ])
+
+        # 参数传递指令
+        elif op == 'PARAM':
+            if arg1:
+                instructions.append(f"    push {self.get_var_ref(arg1)}")
+
         # 算术运算指令
         elif op == 'ADD':
             if arg1 and arg2 and result:
@@ -424,14 +454,13 @@ class CodeGenerator:
         return instructions
 
     def get_var_ref(self, var: str) -> str:
-        """获取变量的引用方式"""
+        """获取变量的引用名称"""
         if var.isdigit():
             return var
-        if var.startswith('main_'):
-            var = var[5:]  # 去掉main_前缀
-        if var.startswith('t'):
-            return f"T{var[1:]}"  # 临时变量
-        return var  # 普通变量
+        elif var.startswith('_'):
+            return var[1:]  # 去掉前导下划线
+        else:
+            return var
     
     def generate_helper_functions(self):
         """生成辅助函数（read/write）"""
@@ -444,25 +473,68 @@ class CodeGenerator:
         output = ["assume cs:code,ds:data,ss:stack,es:extended", ""]
         
         # 添加扩展段
-        output.extend(self.extended_segment)
-        output.append("")
+        output.extend([
+            "extended segment",
+            "    db 1024 dup(0)",
+            "extended ends",
+            ""
+        ])
         
         # 添加堆栈段
-        output.extend(self.stack_segment)
-        output.append("")
+        output.extend([
+            "stack segment",
+            "    db 1024 dup(0)",
+            "stack ends",
+            ""
+        ])
         
         # 添加数据段
-        output.extend(self.data_segment)
-        output.append("")
+        output.extend([
+            "data segment",
+            "; —— 以下是全局变量，全部初始化为 0 ——"
+        ])
+        
+        # 添加变量声明
+        for var in sorted(self.used_variables):
+            if not var.startswith('_'):  # 跳过以_开头的变量
+                output.append(f"{var:<8} dw 0")
+        
+        # 添加临时变量声明
+        for temp in sorted(self.used_temps):
+            if not temp.startswith('_'):  # 跳过以_开头的变量
+                output.append(f"{temp:<8} dw 0")
+        
+        output.extend([
+            "data ends",
+            ""
+        ])
         
         # 包含I/O过程
         output.append("include io.inc")
         output.append("")
         
         # 添加代码段
-        output.extend(self.code_segment)
-        output.append("code ends")
-        output.append("end start")
+        output.extend([
+            "code segment",
+            "start:",
+            "    mov ax,data",
+            "    mov ds,ax",
+            "    mov ax,stack",
+            "    mov ss,ax",
+            "    mov sp,1024",
+            "    mov bp,sp"
+        ])
+        
+        # 添加其他代码
+        for line in self.code_segment:
+            if not line.startswith(("assume", "code segment", "start:", "    mov ax,data", "    mov ds,ax", "    mov ax,stack", "    mov ss,ax", "    mov sp,1024", "    mov bp,sp")):
+                output.append(line)
+        
+        # 添加结束部分
+        output.extend([
+            "code ends",
+            "end start"
+        ])
         
         return "\n".join(output)
 

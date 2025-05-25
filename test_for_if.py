@@ -11,12 +11,13 @@ def test_for_if_sum():
     int main()
     {
         int i, N, sum = 0;
-        N = 10;
+        N = read();
         for(i=1; i<=N; i++)
         {
             if(i%2 == 1)
                 sum = sum+i;
         }
+        write(sum);
         return 0;
     }
     """
@@ -32,6 +33,10 @@ def test_for_if_sum():
     
     if result['status'] != 'success':
         print(f"编译失败: {result['error']}")
+        if 'tokens' in result:
+            print("\n词法分析结果:")
+            for i, (syn, tok) in enumerate(result['tokens']):
+                print(f"{i}: {tok} ({syn})")
         return
     
     print("\n词法分析结果:")

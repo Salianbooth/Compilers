@@ -11,7 +11,7 @@ keywords = {
     'int': 1, 'float': 2, 'double': 3, 'char': 4, 'if': 5,
     'else': 6, 'while': 7, 'for': 8, 'return': 9, 'void': 10,
     'string': 11, 'bool': 12, 'true': 13, 'false': 14,
-    'include': 16
+    'include': 16, 'read': 17, 'write': 18
 }
 
 # 定义操作符及其对应的编码
@@ -465,6 +465,7 @@ def tokens_to_terminals(lexed_tokens: List[Tuple[int, str]]) -> List[str]:
         # 关键字（小写，与文法中一致）
         'int': 'int', 'float': 'float', 'void': 'void',
         'if': 'if', 'else': 'else', 'while': 'while', 'for': 'for', 'return': 'return', 'include': 'include',
+        'read': 'read', 'write': 'write',  # 添加read和write的映射
         # 操作符 & 分隔符
         '=': '=', '+': '+', '-': '-', '*': '*', '/': '/', '%': '%',
         '==': '==', '!=': '!=', '<': '<', '>': '>', '<=': '<=', '>=': '>=',
