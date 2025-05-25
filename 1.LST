@@ -1,4 +1,4 @@
-Microsoft (R) Macro Assembler Version 6.11		    05/25/25 15:55:33
+Microsoft (R) Macro Assembler Version 6.11		    05/25/25 16:06:08
 1.asm							     Page 1 - 1
 
 
@@ -107,6 +107,7 @@ Microsoft (R) Macro Assembler Version 6.11		    05/25/25 15:55:33
  0054  B4 4C			    MOV AH, 4ch
  0056  CD 21			    INT 21h
 
+				; ===== 输入函数 =====
  0058				read PROC NEAR
  0058  55			    PUSH BP
  0059  8B EC			    MOV BP,SP
@@ -179,6 +180,7 @@ Microsoft (R) Macro Assembler Version 6.11		    05/25/25 15:55:33
  00BF  C3			    RET
  00C0				read ENDP
 
+				; ===== 输出函数 =====
  00C0				write PROC NEAR
 				    ; 使用临时变量temp_sum而不是AX
  00C0  BB 0200 R		    MOV BX,OFFSET _msg_p
@@ -229,6 +231,7 @@ Microsoft (R) Macro Assembler Version 6.11		    05/25/25 15:55:33
  0102  C3			    RET
  0103				write ENDP
 
+				; ===== 辅助打印函数 =====
  0103				_print PROC NEAR
  0103  BE 0000			    MOV SI,0
  0106  BF 0000 R		    MOV DI,OFFSET _buff_p
@@ -259,7 +262,7 @@ Microsoft (R) Macro Assembler Version 6.11		    05/25/25 15:55:33
 
  0129				CODE ENDS
 				END START
-Microsoft (R) Macro Assembler Version 6.11		    05/25/25 15:55:33
+Microsoft (R) Macro Assembler Version 6.11		    05/25/25 16:06:08
 1.asm							     Symbols 2 - 1
 
 

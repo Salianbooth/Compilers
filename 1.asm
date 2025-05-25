@@ -28,7 +28,7 @@ DATA SEGMENT
     T4      DW 0
     T5      DW 0
     T6      DW 0
-    temp_sum DW 0   ; ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú±ï¿½ï¿½ï¿½sumÖµ
+    temp_sum DW 0   ; ÐÂÔöÁÙÊ±±äÁ¿ÓÃÓÚ±£´æsumÖµ
 DATA ENDS
 
 CODE SEGMENT
@@ -81,13 +81,14 @@ NEXT:
 QUIT:
     ; Output result
     MOV AX, sum
-    MOV temp_sum, AX  ; ï¿½ï¿½ï¿½ï¿½sumï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½
+    MOV temp_sum, AX  ; ±£´æsumµ½ÁÙÊ±±äÁ¿
     CALL write    ; call write function
     
     ; Exit program
     MOV AH, 4ch
     INT 21h
 
+; ===== ÊäÈëº¯Êý =====
 read PROC NEAR
     PUSH BP
     MOV BP,SP
@@ -160,46 +161,47 @@ read PROC NEAR
     RET
 read ENDP
 
+; ===== Êä³öº¯Êý =====
 write PROC NEAR
-    ; Ê¹ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½temp_sumï¿½ï¿½ï¿½ï¿½ï¿½ï¿½AX
+    ; Ê¹ÓÃÁÙÊ±±äÁ¿temp_sum¶ø²»ÊÇAX
     MOV BX,OFFSET _msg_p
     CALL _print
     
-    MOV AX,temp_sum  ; ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Öµ
-    MOV BX,AX        ; ï¿½ï¿½ï¿½æµ½BX
+    MOV AX,temp_sum  ; ´ÓÁÙÊ±±äÁ¿¼ÓÔØÖµ
+    MOV BX,AX        ; ±£´æµ½BX
     
-    ; ï¿½ï¿½é¸ºï¿½ï¿½
+    ; ¼ì²é¸ºÊý
     TEST BX,8000h
     JZ skip_neg
-    NEG BX           ; ï¿½ï¿½ï¿½ï¿½Ç¸ï¿½ï¿½ï¿½ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½Öµ
-    PUSH BX          ; ï¿½ï¿½ï¿½ï¿½BX
+    NEG BX           ; Èç¹ûÊÇ¸ºÊý£¬È¡¾ø¶ÔÖµ
+    PUSH BX          ; ±£´æBX
     MOV DL,'-'
     MOV AH,2
-    INT 21h          ; ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
-    POP BX           ; ï¿½Ö¸ï¿½BX
+    INT 21h          ; Êä³ö¸ººÅ
+    POP BX           ; »Ö¸´BX
     
 skip_neg:
-    ; ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×ªï¿½ï¿½ÎªASCIIï¿½ï¿½ï¿½ï¿½Ê¾
+    ; ½«Êý×Ö×ª»»ÎªASCII²¢ÏÔÊ¾
     MOV AX,BX
-    XOR CX,CX        ; ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
-    MOV BX,10        ; ï¿½ï¿½ï¿½ï¿½
+    XOR CX,CX        ; ÇåÁã¼ÆÊýÆ÷
+    MOV BX,10        ; ³ýÊý
     
 conv_loop:
     XOR DX,DX
-    DIV BX           ; AX / 10, ï¿½ï¿½ï¿½ï¿½AX, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½DX
-    PUSH DX          ; ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½Ö£ï¿½
-    INC CX           ; ï¿½ï¿½ï¿½Ó¼ï¿½ï¿½ï¿½ï¿½ï¿½
-    TEST AX,AX       ; ï¿½ï¿½ï¿½ï¿½Ç·ï¿½ï¿½Ð¸ï¿½ï¿½ï¿½Î»
-    JNZ conv_loop    ; ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ã£¬ï¿½ï¿½ï¿½ï¿½Ñ­ï¿½ï¿½
+    DIV BX           ; AX / 10, ÉÌÔÚAX, ÓàÊýÔÚDX
+    PUSH DX          ; ±£´æÓàÊý£¨×îµÍÎ»Êý×Ö£©
+    INC CX           ; Ôö¼Ó¼ÆÊýÆ÷
+    TEST AX,AX       ; ¼ì²éÊÇ·ñ»¹ÓÐ¸ü¶àÎ»
+    JNZ conv_loop    ; Èç¹û²»ÊÇÁã£¬¼ÌÐøÑ­»·
     
 print_digits:
-    POP DX           ; È¡ï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
-    ADD DL,'0'       ; ×ªï¿½ï¿½ÎªASCII
+    POP DX           ; È¡³öÒ»¸öÊý×Ö
+    ADD DL,'0'       ; ×ª»»ÎªASCII
     MOV AH,2
-    INT 21h          ; ï¿½ï¿½Ê¾ï¿½ï¿½ï¿½ï¿½
-    LOOP print_digits ; ï¿½ï¿½ï¿½ï¿½Ö±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¶ï¿½ï¿½ï¿½Ê¾ï¿½ï¿½
+    INT 21h          ; ÏÔÊ¾Êý×Ö
+    LOOP print_digits ; ¼ÌÐøÖ±µ½ËùÓÐÊý×Ö¶¼ÏÔÊ¾Íê
     
-    ; ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+    ; Êä³ö»»ÐÐ
     MOV DL,13        ; CR
     MOV AH,2
     INT 21h
@@ -210,6 +212,7 @@ print_digits:
     RET
 write ENDP
 
+; ===== ¸¨Öú´òÓ¡º¯Êý =====
 _print PROC NEAR
     MOV SI,0
     MOV DI,OFFSET _buff_p
