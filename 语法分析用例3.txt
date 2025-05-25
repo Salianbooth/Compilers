@@ -1,13 +1,15 @@
-int main() {
-    int x;
-    int y;
-    int i;
-    int result;
-    
-    x = 5;
-    y = 3;
-    for(i = 0;i<2;i++){
-        x += y;
-    }
-    return 0;
-} 
+ int main()
+        {
+            int n;
+            n=read();
+            int i,j,s;
+             for(i=1;i<=n;i=i+1)
+            {
+                for(j=1;j<=i;j=j+1)
+            {
+                s=i*j;
+                write(j);write(i);write(s );
+                }
+            }
+            return 0;
+        }
