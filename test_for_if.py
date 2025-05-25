@@ -1,3 +1,4 @@
+#test_for_if.py
 from code_generator import CodeGenerator, Quadruple
 from compiler import Compiler
 
@@ -28,31 +29,31 @@ def test_for_if_sum():
 
     """
     
-    print("\n测试用例：for嵌套if,求1到给定数N以内所有奇数的和")
+    # print("\n测试用例：for嵌套if,求1到给定数N以内所有奇数的和")
     print("-" * 60)
-    print("\n源代码：")
-    print(source_code)
-    
+    # print("\n源代码：")
+    # print(source_code)
+    #
     # 使用编译器从源代码生成四元式
     compiler = Compiler()
     result = compiler.compile(source_code)
     
-    if result['status'] != 'success':
-        print(f"编译失败: {result['error']}")
-        if 'tokens' in result:
-            print("\n词法分析结果:")
-            for i, (syn, tok) in enumerate(result['tokens']):
-                print(f"{i}: {tok} ({syn})")
-        return
+    # if result['status'] != 'success':
+    #     print(f"编译失败: {result['error']}")
+    #     if 'tokens' in result:
+    #         print("\n词法分析结果:")
+    #         for i, (syn, tok) in enumerate(result['tokens']):
+    #             print(f"{i}: {tok} ({syn})")
+    #     return
     
-    print("\n词法分析结果:")
-    for i, (syn, tok) in enumerate(result['tokens']):
-        print(f"{i}: {tok} ({syn})")
-    
+    # print("\n词法分析结果:")
+    # for i, (syn, tok) in enumerate(result['tokens']):
+    #     print(f"{i}: {tok} ({syn})")
+    #
     quads = result['quads']
-    print("\n生成的四元式：")
-    for i, quad in enumerate(quads):
-        print(f"{i}: {quad}")
+    # print("\n生成的四元式：")
+    # for i, quad in enumerate(quads):
+    #     print(f"{i}: {quad}")
     
     # 创建代码生成器，将四元式转换为汇编代码
     cg = CodeGenerator()
@@ -63,9 +64,9 @@ def test_for_if_sum():
     print(asm_code)
     
     # 将汇编代码保存到文件
-    with open("2.asm", "w", encoding="utf-8") as f:
-        f.write(asm_code)
-    print("\n汇编代码已保存到 2.asm")
+    # with open("2.asm", "w", encoding="utf-8") as f:
+    #     f.write(asm_code)
+    # print("\n汇编代码已保存到 2.asm")
 
 if __name__ == "__main__":
     test_for_if_sum() 

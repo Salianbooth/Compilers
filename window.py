@@ -137,6 +137,9 @@ class MainWindow(QMainWindow):
         compile_action = QAction('一键编译', self)
         compile_action.triggered.connect(self.compile_all)
         menubar.addAction(compile_action)
+        generate_code_action = QAction('生成目标代码', self)
+        generate_code_action.triggered.connect(self.generate_target_code)
+        menubar.addAction(generate_code_action)
 
         mode_menu = menubar.addMenu('词法模式')
         manual_action = QAction('手动分析', self)
@@ -499,6 +502,32 @@ class MainWindow(QMainWindow):
             self.error_text_edit.setPlainText("编译成功，无错误。")
         else:
             self.error_text_edit.setPlainText(f"编译失败: {result['error']}")
+
+    def generate_target_code(self):
+        """调用 test_for_if_sum 并显示生成的汇编代码"""
+        from io import StringIO
+        import sys
+
+        # 重定向标准输出
+        old_stdout = sys.stdout
+        new_stdout = StringIO()
+        sys.stdout = new_stdout
+
+        # 调用测试函数
+        try:
+            from Compilers.test_for_if import test_for_if_sum
+            test_for_if_sum()
+        except Exception as e:
+            self.error_text_edit.setPlainText(f"生成目标代码时出错: {str(e)}")
+            sys.stdout = old_stdout
+            return
+
+        # 恢复标准输出
+        sys.stdout = old_stdout
+
+        # 获取生成的汇编代码
+        asm_code = new_stdout.getvalue()
+        self.ir_text_edit.setPlainText(asm_code)  # 显示在界面上
 
 
 if __name__ == '__main__':
