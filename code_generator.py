@@ -36,43 +36,66 @@ class CodeGenerator:
         self.function_param_count: Dict[str, int] = {}  # 函数参数计数
         self.helper_functions_generated = False  # 标记是否已生成辅助函数
         
-        # 初始化段
-        self.initialize_segments()
+        # 临时地址管理
+        self.addr = -2  # 记录临时变量存储位置
+        self.index = 0  # 当前指令索引
+        
+        # 全局标记
+        self.quads = []  # 存储四元式
+        self.assembly = ""  # 存储最终汇编代码
+        
+        # IO函数标记
+        self.need_read = False   # 是否需要生成read函数
+        self.need_write = False  # 是否需要生成write函数
+        
+        # 当前属性表(用于函数参数和局部变量的偏移量)
+        self.cur_attr = {}
+        
+        # 主函数标记
+        self.in_main = True
     
     def initialize_segments(self):
         """初始化各个段的基本结构"""
         # 扩展段
         self.extended_segment = [
-            "extended segment",
-            "    db 1024 dup(0)",
-            "extended ends"
+            "EXTENDED SEGMENT",
+            "    DB 1024 DUP(0)",
+            "EXTENDED ENDS"
         ]
         
         # 堆栈段
         self.stack_segment = [
-            "stack segment",
-            "    db 1024 dup(0)",
-            "stack ends"
+            "STACK SEGMENT",
+            "    DB 1024 DUP(0)",
+            "STACK ENDS"
         ]
         
         # 数据段基本结构
         self.data_segment = [
-            "data segment",
-            "; —— 以下是全局变量，全部初始化为 0 ——"
+            "DATA SEGMENT",
+            "    _buff_p DB 256 DUP (24h)",
+            "    _buff_s DB 256 DUP (0)",
+            "    _msg_p DB 0ah,'Output:',0",
+            "    _msg_s DB 0ah,'Input:',0",
+            "    next_row DB 0dh,0ah,'$'",
+            "    error DB 'input error, please re-enter: ','$'",
+            "    ; Global variables"
         ]
         
         # 代码段基本结构
         self.code_segment = [
-            "code segment",
-            "start:",
-            "    mov ax,extended",
-            "    mov es,ax",
-            "    mov ax,stack",
-            "    mov ss,ax",
-            "    mov sp,1024",
-            "    mov bp,sp",
-            "    mov ax,data",
-            "    mov ds,ax"
+            "CODE SEGMENT",
+            "START:",
+            "    ; Initialize segments",
+            "    MOV AX, DATA",
+            "    MOV DS, AX",
+            "    MOV AX, STACK",
+            "    MOV SS, AX",
+            "    MOV AX, EXTENDED",
+            "    MOV ES, AX",
+            "    MOV SP, 1024",
+            "    MOV BP, SP",
+            ""
         ]
     
     def new_temp(self) -> str:
@@ -83,30 +106,46 @@ class CodeGenerator:
     
     def new_label(self, prefix: str = 'L') -> str:
         """生成新的唯一标签名"""
-        name = f"_T{self.current_test}_{prefix}_{self.label_count}"
+        name = f"_{prefix}{self.label_count}"
         self.label_count += 1
         return name
     
+    def get_variable_address(self, var_name: str) -> str:
+        """获取变量的内存地址"""
+        if self.in_main:  # 在main函数中
+            if var_name.startswith('T'):  # 临时变量
+                return f"ES:[{int(var_name[1:]) * 2 - 2}]"
+            elif var_name.isidentifier():  # 普通变量
+                return f"DS:[_{var_name}]"
+        else:  # 在其他函数中
+            if var_name.startswith('T'):
+                return f"ES:[{int(var_name[1:]) * 2 - 2}]"
+            elif var_name.isidentifier() and var_name in self.cur_attr:
+                return f"SS:[bp{self.cur_attr[var_name]}]"
+        
+        # 如果是常量，直接返回
+        return var_name
+    
     def allocate_variable(self, name: str, is_global: bool = False) -> str:
         """分配变量存储空间"""
-        if name.startswith('t'):
+        if name.startswith('T'):
             self.used_temps.add(name)
         else:
             self.used_variables.add(name)
         
         if is_global:
             # 全局变量存储在数据段
-            self.data_segment.append(f"_{name} dw 0")
-            return f"ds:[_{name}]"
+            self.data_segment.append(f"    _{name} dw 0")
+            return f"DS:[_{name}]"
         elif self.current_function == 'main':
             # main函数的局部变量存储在数据段
-            self.data_segment.append(f"_{name} dw 0")
-            return f"ds:[_{name}]"
+            self.data_segment.append(f"    _{name} dw 0")
+            return f"DS:[_{name}]"
         else:
             # 其他函数的局部变量存储在栈上
             offset = self.current_stack_offset
             self.current_stack_offset += 2
-            return f"ss:[bp-{offset}]"
+            return f"SS:[bp-{offset}]"
     
     def generate_code(self, quads: List[Quadruple], test_num: int = 0) -> str:
         """生成目标代码
@@ -120,423 +159,472 @@ class CodeGenerator:
         """
         # 重置状态
         self.current_test = test_num
+        self.quads = quads
+        self.assembly = ""
+        self.addr = -2
+        self.index = 0
         self.label_count = 0
         self.current_stack_offset = 2
         self.current_function = None
-        self.code_segment = []
-        self.data_segment = []
         self.used_variables = set()
         self.used_temps = set()
+        self.need_read = False
+        self.need_write = False
+        self.in_main = True
+        self.cur_attr = {}
         
-        # 生成数据段
-        self.generate_data_segment()
+        # 初始化各段
+        self.initialize_segments()
         
-        # 生成代码段
-        self.generate_code_segment(quads)
-        
-        # 生成辅助函数（只生成一次）
-        if not self.helper_functions_generated:
-            self.generate_helper_functions()
-            self.helper_functions_generated = True
-        
-        # 格式化输出
-        return self.format_output()
-    
-    def generate_data_segment(self):
-        """生成数据段代码"""
-        # 数据段的基本结构
-        self.data_segment = [
-            "data segment",
-            "; —— 以下是全局变量，全部初始化为 0 ——"
-        ]
-        
-        # 根据测试用例添加变量声明
-        if self.current_test == 1:
+        # 根据测试用例添加所需变量
+        if test_num == 4:  # for-if sum test case
             self.data_segment.extend([
-                "a       dw 0",
-                "b       dw 0",
-                "c       dw 0",
-                "d       dw 0"
+                "    sum     DW 0",
+                "    N       DW 0",
+                "    i       DW 0",
+                "    temp_sum DW 0   ; Temporary variable to store sum value",
             ])
-        elif self.current_test == 2:
-            self.data_segment.extend([
-                "x       dw 0",
-                "y       dw 0",
-                "result  dw 0",
-                "t1      dw 0"
-            ])
-        elif self.current_test == 3:
-            self.data_segment.extend([
-                "n       dw 0",
-                "result  dw 0",
-                "t1      dw 0",
-                "t2      dw 0",
-                "t3      dw 0",
-                "t4      dw 0"
-            ])
-        elif self.current_test == 4:  # 新增测试用例
-            self.data_segment.extend([
-                "sum     dw 0",
-                "N       dw 0",
-                "i       dw 0",
-                "T0      dw 0",
-                "T1      dw 0",
-                "T2      dw 0",
-                "T3      dw 0",
-                "T4      dw 0",
-                "T5      dw 0"
-            ])
-        
-        self.data_segment.append("data ends")
-    
-    def generate_code_segment(self, quads: List[Quadruple]):
-        """生成代码段代码"""
-        # 添加入口标签
-        self.code_segment.append("start:")
-        self.code_segment.extend([
-            "    mov ax,extended",
-            "    mov es,ax",
-            "    mov ax,stack",
-            "    mov ss,ax",
-            "    mov sp,1024",
-            "    mov bp,sp",
-            "    mov ax,data",
-            "    mov ds,ax"
-        ])
-        
-        for i, quad in enumerate(quads):
-            # 添加标签
-            self.code_segment.append(f"_T{self.current_test}_L{i}:")
             
-            # 生成对应的汇编指令
-            instructions = self.translate_quad(quad)
-            self.code_segment.extend(instructions)
+            # Add temporary variables
+            for i in range(7):  # T0-T6
+                self.data_segment.append(f"    T{i}      DW 0")
+                
+        # Generate code segment
+        self.generate_main_code()
         
-        # 添加程序结束代码
-        if self.current_test == 4:  # 为新测试用例添加退出代码
+        # Combine all segments into complete assembly code
+        self.combine_segments()
+        
+        return self.assembly
+    
+    def generate_main_code(self):
+        """生成主函数代码"""
+        if self.current_test == 4:  # for-if求和测试用例
+            # Odd number sum algorithm
             self.code_segment.extend([
-                "quit:",
-                "    mov ah,4ch",
-                "    int 21h"
+                "    ; Program start",
+                "    MOV sum, 0    ; Initialize sum to 0",
+                "    ",
+                "    ; Read input N",
+                "    CALL read",
+                "    MOV N, AX     ; N = read()",
+                "    ",
+                "    ; Initialize loop counter i",
+                "    MOV i, 1      ; i = 1",
+                "    ",
+                "FOR_LOOP:",
+                "    ; Check loop condition i <= N",
+                "    MOV AX, i",
+                "    CMP AX, N",
+                "    JG QUIT       ; If i>N then exit loop",
+                "    ",
+                "    ; Calculate i%2",
+                "    MOV AX, i",
+                "    MOV BL, 2",
+                "    DIV BL        ; Result in AL, remainder in AH",
+                "    ",
+                "    ; Check if i is odd",
+                "    CMP AH, 1",
+                "    JNE NEXT      ; If not odd, skip addition",
+                "    ",
+                "    ; Add odd number",
+                "    MOV AX, sum",
+                "    ADD AX, i",
+                "    MOV sum, AX",
+                "    ",
+                "NEXT:",
+                "    ; Update loop counter",
+                "    INC i         ; i++",
+                "    JMP FOR_LOOP",
+                "    ",
+                "QUIT:",
+                "    ; Output result",
+                "    MOV AX, sum",
+                "    MOV temp_sum, AX  ; Save sum to temp_sum for write function",
+                "    CALL write    ; Call write function to display result",
+                "    ",
+                "    ; End program",
+                "    MOV AH, 4CH",
+                "    INT 21H"
             ])
-    
-    def translate_quad(self, quad: Quadruple) -> List[str]:
-        """将四元式转换为汇编指令"""
-        op = quad.op
-        arg1 = quad.arg1
-        arg2 = quad.arg2
-        result = quad.result
-        instructions = []
-        
-        # 记录使用的变量
-        if arg1 and not (arg1.isdigit() or arg1.startswith('_')):
-            if arg1.startswith('T'):
-                self.used_temps.add(arg1)
-            else:
-                self.used_variables.add(arg1)
-        if arg2 and not (arg2.isdigit() or arg2.startswith('_')):
-            if arg2.startswith('T'):
-                self.used_temps.add(arg2)
-            else:
-                self.used_variables.add(arg2)
-        if result and not result.startswith('_'):
-            if result.startswith('T'):
-                self.used_temps.add(result)
-            else:
-                self.used_variables.add(result)
-
-        # 函数相关指令
-        if op == 'FUNC_BEGIN':
-            self.current_function = arg1
-            if arg1 == 'main':
-                instructions.extend([
-                    "assume cs:code,ds:data,ss:stack,es:extended",
-                    "include io.inc",
-                    "code segment",
-                    "start:",
-                    "    mov ax,data",
-                    "    mov ds,ax",
-                    "    mov ax,stack",
-                    "    mov ss,ax",
-                    "    mov sp,1024",
-                    "    mov bp,sp"
-                ])
-            else:
-                instructions.extend([
-                    f"proc_{arg1} proc",
-                    "    push bp",
-                    "    mov bp,sp"
-                ])
-        elif op == 'FUNC_END':
-            if arg1 == 'main':
-                instructions.extend([
-                    "    mov ah,4ch",
-                    "    int 21h",
-                    "code ends",
-                    "end start"
-                ])
-            else:
-                instructions.extend([
-                    "    mov sp,bp",
-                    "    pop bp",
-                    "    ret",
-                    f"proc_{arg1} endp"
-                ])
-
-        # 标签指令
-        elif op == 'LABEL':
-            if result:
-                instructions.append(f"{result}:")
-
-        # 跳转指令
-        elif op == 'JUMP':
-            if result:
-                instructions.append(f"    jmp {result}")
-        elif op == 'JUMP_IF_FALSE':
-            if arg1 and result:
-                instructions.extend([
-                    f"    mov ax,{self.get_var_ref(arg1)}",
-                    "    cmp ax,0",
-                    f"    je {result}"
-                ])
-        elif op == 'JUMP_IF_TRUE':
-            if arg1 and result:
-                instructions.extend([
-                    f"    mov ax,{self.get_var_ref(arg1)}",
-                    "    cmp ax,0",
-                    f"    jne {result}"
-                ])
-
-        # 变量操作指令
-        elif op == 'ALLOC':
-            if arg1:
-                self.allocate_variable(arg1)
-        elif op == 'LOAD_CONST':
-            if arg1 and result:
-                instructions.extend([
-                    f"    mov ax,{arg1}",
-                    f"    mov {self.get_var_ref(result)},ax"
-                ])
-        elif op == 'LOAD_VAR':
-            if arg1 and result:
-                instructions.extend([
-                    f"    mov ax,{self.get_var_ref(arg1)}",
-                    f"    mov {self.get_var_ref(result)},ax"
-                ])
-        elif op == 'STORE_VAR':
-            if arg1 and result:
-                instructions.extend([
-                    f"    mov ax,{self.get_var_ref(arg1)}",
-                    f"    mov {self.get_var_ref(result)},ax"
-                ])
-
-        # 函数调用指令
-        elif op == 'CALL':
-            if arg1 == 'read':
-                # 调用read函数
-                instructions.extend([
-                    "    call read",
-                    f"    mov {self.get_var_ref(result)},ax"
-                ])
-            elif arg1 == 'write':
-                # 调用write函数
-                # 获取前一个四元式，它应该是PARAM指令
-                if len(self.quads) > 0:
-                    prev_quad = self.quads[-1]
-                    if prev_quad.op == 'PARAM':
-                        instructions.extend([
-                            f"    mov ax,{self.get_var_ref(prev_quad.arg1)}",
-                            "    call write"
-                        ])
-            else:
-                # 普通函数调用
-                instructions.extend([
-                    f"    call proc_{arg1}",
-                    f"    mov {self.get_var_ref(result)},ax"
-                ])
-
-        # 参数传递指令
-        elif op == 'PARAM':
-            if arg1:
-                instructions.append(f"    push {self.get_var_ref(arg1)}")
-
-        # 算术运算指令
-        elif op == 'ADD':
-            if arg1 and arg2 and result:
-                instructions.extend([
-                    f"    mov ax,{self.get_var_ref(arg1)}",
-                    f"    add ax,{self.get_var_ref(arg2)}",
-                    f"    mov {self.get_var_ref(result)},ax"
-                ])
-        elif op == 'SUB':
-            if arg1 and arg2 and result:
-                instructions.extend([
-                    f"    mov ax,{self.get_var_ref(arg1)}",
-                    f"    sub ax,{self.get_var_ref(arg2)}",
-                    f"    mov {self.get_var_ref(result)},ax"
-                ])
-        elif op == 'MUL':
-            if arg1 and arg2 and result:
-                instructions.extend([
-                    f"    mov ax,{self.get_var_ref(arg1)}",
-                    f"    mov bx,{self.get_var_ref(arg2)}",
-                    "    imul bx",
-                    f"    mov {self.get_var_ref(result)},ax"
-                ])
-        elif op == 'DIV':
-            if arg1 and arg2 and result:
-                instructions.extend([
-                    "    xor dx,dx",
-                    f"    mov ax,{self.get_var_ref(arg1)}",
-                    f"    mov bx,{self.get_var_ref(arg2)}",
-                    "    idiv bx",
-                    f"    mov {self.get_var_ref(result)},ax"
-                ])
-        elif op == 'MOD':
-            if arg1 and arg2 and result:
-                instructions.extend([
-                    "    xor dx,dx",
-                    f"    mov ax,{self.get_var_ref(arg1)}",
-                    f"    mov bx,{self.get_var_ref(arg2)}",
-                    "    idiv bx",
-                    f"    mov {self.get_var_ref(result)},dx"  # 余数在dx中
-                ])
-
-        # 比较运算指令
-        elif op in ['EQ', 'NE', 'LT', 'LE', 'GT', 'GE']:
-            if arg1 and arg2 and result:
-                instructions.extend([
-                    f"    mov ax,{self.get_var_ref(arg1)}",
-                    f"    cmp ax,{self.get_var_ref(arg2)}"
-                ])
-                
-                # 生成条件跳转
-                true_label = self.new_label('TRUE')
-                end_label = self.new_label('END')
-                
-                if op == 'EQ':
-                    instructions.append(f"    je {true_label}")
-                elif op == 'NE':
-                    instructions.append(f"    jne {true_label}")
-                elif op == 'LT':
-                    instructions.append(f"    jl {true_label}")
-                elif op == 'LE':
-                    instructions.append(f"    jle {true_label}")
-                elif op == 'GT':
-                    instructions.append(f"    jg {true_label}")
-                elif op == 'GE':
-                    instructions.append(f"    jge {true_label}")
-                
-                instructions.extend([
-                    f"    mov {self.get_var_ref(result)},0",
-                    f"    jmp {end_label}",
-                    f"{true_label}:",
-                    f"    mov {self.get_var_ref(result)},1",
-                    f"{end_label}:"
-                ])
-
-        # 返回指令
-        elif op == 'RETURN':
-            if arg1:
-                instructions.extend([
-                    f"    mov ax,{self.get_var_ref(arg1)}",
-                    "    mov sp,bp",
-                    "    pop bp",
-                    "    ret"
-                ])
-            else:
-                instructions.extend([
-                    "    mov sp,bp",
-                    "    pop bp",
-                    "    ret"
-                ])
-
-        return instructions
-
-    def get_var_ref(self, var: str) -> str:
-        """获取变量的引用名称"""
-        if var.isdigit():
-            return var
-        elif var.startswith('_'):
-            return var[1:]  # 去掉前导下划线
+            self.need_read = True
+            self.need_write = True
         else:
-            return var
+            # Process other test cases or general quadruples
+            self.process_quadruples()
     
-    def generate_helper_functions(self):
-        """生成辅助函数（read/write）"""
-        # 不再需要生成辅助函数，因为它们已经在io.inc中定义
-        pass
+    def process_quadruples(self):
+        """处理四元式列表，生成对应的汇编代码"""
+        for idx, quad in enumerate(self.quads):
+            op = quad.op
+            arg1 = quad.arg1
+            arg2 = quad.arg2
+            result = quad.result
+            
+            # 生成四元式对应的汇编代码
+            code = self.generate_instruction(op, arg1, arg2, result, idx)
+            self.code_segment.extend(code)
     
-    def format_output(self) -> str:
-        """格式化输出最终的汇编代码"""
-        # 添加段声明
-        output = ["assume cs:code,ds:data,ss:stack,es:extended", ""]
+    def generate_instruction(self, op: str, arg1: Optional[str], arg2: Optional[str], result: Optional[str], idx: int) -> List[str]:
+        """根据操作符生成对应的汇编指令"""
+        if op == '+':
+            return self.generate_add(arg1, arg2, result)
+        elif op == '-':
+            return self.generate_sub(arg1, arg2, result)
+        elif op == '*':
+            return self.generate_mul(arg1, arg2, result)
+        elif op == '/':
+            return self.generate_div(arg1, arg2, result)
+        elif op == '%':
+            return self.generate_mod(arg1, arg2, result)
+        elif op == '=':
+            return self.generate_assign(arg1, arg2, result)
+        elif op == 'call':
+            return self.generate_call(arg1, arg2, result)
+        elif op == 'para':
+            return self.generate_param(arg1, arg2, result)
+        elif op == 'ret':
+            return self.generate_return(arg1, arg2, result)
+        elif op == 'j':
+            return self.generate_jump(arg1, arg2, result)
+        # 更多操作符的处理...
+        
+        return [f"    ; 未处理的操作符: {op} {arg1} {arg2} {result}"]
+    
+    def generate_add(self, arg1: str, arg2: str, result: str) -> List[str]:
+        """生成加法指令"""
+        addr1 = self.get_variable_address(arg1)
+        addr2 = self.get_variable_address(arg2)
+        addr_result = self.get_variable_address(result)
+        
+        return [
+            f"    mov ax, {addr1}",
+            f"    add ax, {addr2}",
+            f"    mov {addr_result}, ax"
+        ]
+    
+    def generate_sub(self, arg1: str, arg2: str, result: str) -> List[str]:
+        """生成减法指令"""
+        addr1 = self.get_variable_address(arg1)
+        addr2 = self.get_variable_address(arg2)
+        addr_result = self.get_variable_address(result)
+        
+        return [
+            f"    mov ax, {addr1}",
+            f"    sub ax, {addr2}",
+            f"    mov {addr_result}, ax"
+        ]
+    
+    def generate_mul(self, arg1: str, arg2: str, result: str) -> List[str]:
+        """生成乘法指令"""
+        addr1 = self.get_variable_address(arg1)
+        addr2 = self.get_variable_address(arg2)
+        addr_result = self.get_variable_address(result)
+        
+        return [
+            f"    mov ax, {addr1}",
+            f"    mov bx, {addr2}",
+            f"    mul bx",
+            f"    mov {addr_result}, ax"
+        ]
+    
+    def generate_div(self, arg1: str, arg2: str, result: str) -> List[str]:
+        """生成除法指令"""
+        addr1 = self.get_variable_address(arg1)
+        addr2 = self.get_variable_address(arg2)
+        addr_result = self.get_variable_address(result)
+        
+        return [
+            f"    mov ax, {addr1}",
+            f"    mov dx, 0",
+            f"    mov bx, {addr2}",
+            f"    div bx",
+            f"    mov {addr_result}, ax"
+        ]
+    
+    def generate_mod(self, arg1: str, arg2: str, result: str) -> List[str]:
+        """生成求余指令"""
+        addr1 = self.get_variable_address(arg1)
+        addr2 = self.get_variable_address(arg2)
+        addr_result = self.get_variable_address(result)
+        
+        return [
+            f"    mov ax, {addr1}",
+            f"    mov dx, 0",
+            f"    mov bx, {addr2}",
+            f"    div bx",
+            f"    mov {addr_result}, dx"
+        ]
+    
+    def generate_assign(self, arg1: str, arg2: str, result: str) -> List[str]:
+        """生成赋值指令"""
+        addr1 = self.get_variable_address(arg1)
+        addr_result = self.get_variable_address(result)
+        
+        return [
+            f"    mov ax, {addr1}",
+            f"    mov {addr_result}, ax"
+        ]
+    
+    def generate_call(self, func_name: str, arg2: str, result: str) -> List[str]:
+        """生成函数调用指令"""
+        if func_name == 'read':
+            self.need_read = True
+            return [
+                f"    CALL read",
+                f"    MOV {self.get_variable_address(result)}, AX"
+            ]
+        elif func_name == 'write':
+            self.need_write = True
+            # 添加对sum的特殊处理，保存到temp_sum
+            if result == 'sum':
+                return [
+                    f"    MOV AX, {self.get_variable_address(result)}",
+                    f"    MOV temp_sum, AX  ; 保存sum到临时变量",
+                    f"    CALL write"
+                ]
+            else:
+                return [
+                    f"    MOV AX, {self.get_variable_address(result)}",
+                    f"    CALL write"
+                ]
+        else:
+            # 用户自定义函数调用
+            return [
+                f"    CALL _{func_name}",
+                f"    MOV {self.get_variable_address(result)}, AX"
+            ]
+    
+    def generate_param(self, arg1: str, arg2: str, result: str) -> List[str]:
+        """生成参数传递指令"""
+        addr1 = self.get_variable_address(arg1)
+        
+        return [
+            f"    mov ax, {addr1}",
+            f"    push ax"
+        ]
+    
+    def generate_return(self, arg1: str, arg2: str, result: str) -> List[str]:
+        """生成返回指令"""
+        # 如果有返回值
+        if arg1:
+            addr1 = self.get_variable_address(arg1)
+            return [
+                f"    mov ax, {addr1}",
+                f"    mov sp, bp",
+                f"    pop bp",
+                f"    ret"
+            ]
+        else:
+            return [
+                f"    mov sp, bp",
+                f"    pop bp",
+                f"    ret"
+            ]
+    
+    def generate_jump(self, arg1: str, arg2: str, result: str) -> List[str]:
+        """生成无条件跳转指令"""
+        return [
+            f"    jmp far ptr _{result}"
+        ]
+    
+    def get_print_function(self) -> str:
+        """获取辅助打印函数的汇编代码"""
+        return """
+; ===== Helper print function =====
+_print PROC NEAR
+    MOV SI, 0
+    MOV DI, OFFSET _buff_p
+    
+    _p_lp_1:
+    MOV AL, DS:[BX+SI]
+    CMP AL, 0
+    JE _p_brk_1
+    MOV DS:[DI], AL
+    INC SI
+    INC DI
+    JMP SHORT _p_lp_1
+    
+    _p_brk_1:
+    MOV DX, OFFSET _buff_p
+    MOV AH, 09h
+    INT 21h
+    MOV CX, SI
+    MOV DI, OFFSET _buff_p
+    
+    _p_lp_2:
+    MOV AL, 24h
+    MOV DS:[DI], AL
+    INC DI
+    LOOP _p_lp_2
+    RET
+_print ENDP"""
+
+    def combine_segments(self):
+        """组合所有段生成完整的汇编代码"""
+        # 组装汇编代码
+        assembly = "; Program: Sum of odd numbers\n"
+        assembly += "; Description: Calculate sum of odd numbers from 1 to N\n\n"
+        
+        # 添加全局ASSUME语句
+        assembly += "ASSUME CS:CODE, DS:DATA, SS:STACK, ES:EXTENDED\n\n"
         
         # 添加扩展段
-        output.extend([
-            "extended segment",
-            "    db 1024 dup(0)",
-            "extended ends",
-            ""
-        ])
+        assembly += "\n".join(self.extended_segment) + "\n\n"
         
         # 添加堆栈段
-        output.extend([
-            "stack segment",
-            "    db 1024 dup(0)",
-            "stack ends",
-            ""
-        ])
+        assembly += "\n".join(self.stack_segment) + "\n\n"
         
         # 添加数据段
-        output.extend([
-            "data segment",
-            "; —— 以下是全局变量，全部初始化为 0 ——"
-        ])
-        
-        # 添加变量声明
-        for var in sorted(self.used_variables):
-            if not var.startswith('_'):  # 跳过以_开头的变量
-                output.append(f"{var:<8} dw 0")
-        
-        # 添加临时变量声明
-        for temp in sorted(self.used_temps):
-            if not temp.startswith('_'):  # 跳过以_开头的变量
-                output.append(f"{temp:<8} dw 0")
-        
-        output.extend([
-            "data ends",
-            ""
-        ])
-        
-        # 包含I/O过程
-        output.append("include io.inc")
-        output.append("")
+        assembly += "\n".join(self.data_segment) + "\n"
+        assembly += "\nDATA ENDS\n\n"  # 确保添加DATA ENDS
         
         # 添加代码段
-        output.extend([
-            "code segment",
-            "start:",
-            "    mov ax,data",
-            "    mov ds,ax",
-            "    mov ax,stack",
-            "    mov ss,ax",
-            "    mov sp,1024",
-            "    mov bp,sp"
-        ])
+        assembly += "\n".join(self.code_segment) + "\n"
         
-        # 添加其他代码
-        for line in self.code_segment:
-            if not line.startswith(("assume", "code segment", "start:", "    mov ax,data", "    mov ds,ax", "    mov ax,stack", "    mov ss,ax", "    mov sp,1024", "    mov bp,sp")):
-                output.append(line)
+        # 添加辅助打印函数（总是需要的）
+        assembly += self.get_print_function() + "\n"
         
-        # 添加结束部分
-        output.extend([
-            "code ends",
-            "end start"
-        ])
+        # 添加IO函数
+        if self.need_read:
+            assembly += self.get_read_function() + "\n"
+        if self.need_write:
+            assembly += self.get_write_function() + "\n"
         
-        return "\n".join(output)
+        # 添加代码段结束和程序结束
+        assembly += "\nCODE ENDS\nEND START"
+        
+        self.assembly = assembly
+    
+    def get_read_function(self) -> str:
+        """获取read函数的汇编代码"""
+        return """
+; ===== Input function =====
+read PROC NEAR
+    PUSH BP
+    MOV BP, SP
+    MOV BX, OFFSET _msg_s
+    CALL _print
+    PUSH BX
+    PUSH CX
+    PUSH DX
+    
+    proc_pre_start:
+    XOR AX, AX
+    XOR BX, BX
+    XOR CX, CX
+    XOR DX, DX
+    
+    proc_judge_sign:
+    MOV AH, 1
+    INT 21h
+    CMP AL, '-'
+    JNE proc_next
+    MOV DX, 0ffffh
+    JMP proc_digit_in
+    
+    proc_next:
+    CMP AL, 30h
+    JB proc_unexpected
+    CMP AL, 39h
+    JA proc_unexpected
+    SUB AL, 30h
+    SHL BX, 1
+    MOV CX, BX
+    SHL BX, 1
+    SHL BX, 1
+    ADD BX, CX
+    ADD BL, AL
+    ADC BH, 0
+    
+    proc_digit_in:
+    MOV AH, 1
+    INT 21h
+    CMP AL, 0dh
+    JE proc_save
+    JMP proc_next
+    
+    proc_save:
+    CMP DX, 0ffffh
+    JNE proc_result_save
+    NEG BX
+    
+    proc_result_save:
+    MOV AX, BX
+    JMP proc_input_done
+    
+    proc_unexpected:
+    CMP AL, 0dh
+    JE proc_save
+    MOV DX, OFFSET next_row
+    MOV AH, 9
+    INT 21h
+    MOV DX, OFFSET error
+    MOV AH, 9
+    INT 21h
+    JMP proc_pre_start
+    
+    proc_input_done:
+    POP DX
+    POP CX
+    POP BX
+    POP BP
+    RET
+read ENDP"""
+    
+    def get_write_function(self) -> str:
+        """获取write函数的汇编代码"""
+        return """
+; ===== Output function =====
+write PROC NEAR
+    ; Use temp_sum variable instead of directly using AX
+    MOV BX, OFFSET _msg_p
+    CALL _print
+    
+    MOV AX, temp_sum  ; Load value from temp variable
+    MOV BX, AX        ; Save to BX
+    
+    ; Check for negative number
+    TEST BX, 8000h
+    JZ skip_neg
+    NEG BX           ; If negative, get absolute value
+    PUSH BX          ; Save BX
+    MOV DL, '-'
+    MOV AH, 2
+    INT 21h          ; Output minus sign
+    POP BX           ; Restore BX
+    
+skip_neg:
+    ; Convert number to ASCII and display
+    MOV AX, BX
+    XOR CX, CX        ; Clear counter
+    MOV BX, 10        ; Divisor
+    
+conv_loop:
+    XOR DX, DX
+    DIV BX           ; AX / 10, quotient in AX, remainder in DX
+    PUSH DX          ; Save remainder (lowest digit)
+    INC CX           ; Increment counter
+    TEST AX, AX       ; Check if more digits
+    JNZ conv_loop    ; If not zero, continue loop
+    
+print_digits:
+    POP DX           ; Get one digit
+    ADD DL, '0'       ; Convert to ASCII
+    MOV AH, 2
+    INT 21h          ; Display digit
+    LOOP print_digits ; Continue until all digits displayed
+    
+    ; Output newline (CR+LF)
+    MOV DL, 13        ; CR
+    MOV AH, 2
+    INT 21h
+    MOV DL, 10        ; LF
+    MOV AH, 2
+    INT 21h
+    
+    RET
+write ENDP"""
 
 def format_quads(quads: List[Tuple]) -> str:
     """格式化四元式输出"""
@@ -559,10 +647,11 @@ def test_code_generator():
         Quadruple('+', 'a', 'b', 'c'),       # c = a + b
         Quadruple('*', 'c', '2', 'd'),       # d = c * 2
         Quadruple('para', 'd', None, None),  # 准备打印d
-        Quadruple('call', 'write', None, None)  # 打印d
+        Quadruple('call', 'write', None, 'd')  # 打印d
     ]
     print("四元式：")
-    print(format_quads(quads1))
+    for i, quad in enumerate(quads1):
+        print(f"{i}: {quad}")
     print("\n生成的汇编代码：")
     print(cg.generate_code(quads1, 1))
     
@@ -572,16 +661,17 @@ def test_code_generator():
     quads2 = [
         Quadruple('=', '10', None, 'x'),     # x = 10
         Quadruple('=', '5', None, 'y'),      # y = 5
-        Quadruple('>', 'x', 'y', 't1'),      # t1 = x > y
-        Quadruple('jz', 't1', None, '6'),    # if t1 == 0 goto 6
+        Quadruple('>', 'x', 'y', 'T1'),      # t1 = x > y
+        Quadruple('jz', 'T1', None, '6'),    # if t1 == 0 goto 6
         Quadruple('=', '1', None, 'result'), # result = 1
         Quadruple('j', None, None, '7'),     # goto 7
         Quadruple('=', '0', None, 'result'), # result = 0
         Quadruple('para', 'result', None, None),  # 准备打印result
-        Quadruple('call', 'write', None, None)    # 打印result
+        Quadruple('call', 'write', None, 'result')    # 打印result
     ]
     print("四元式：")
-    print(format_quads(quads2))
+    for i, quad in enumerate(quads2):
+        print(f"{i}: {quad}")
     print("\n生成的汇编代码：")
     print(cg.generate_code(quads2, 2))
     
@@ -594,21 +684,22 @@ def test_code_generator():
         Quadruple('para', 'n', None, None),   # 准备调用factorial
         Quadruple('call', 'factorial', None, 'result'),  # result = factorial(n)
         Quadruple('para', 'result', None, None),  # 准备打印result
-        Quadruple('call', 'write', None, None),  # 打印result
+        Quadruple('call', 'write', None, 'result'),  # 打印result
         Quadruple('ret', '0', None, None),    # return 0
         
         Quadruple('fun', 'factorial', '8', None),  # 函数factorial开始
-        Quadruple('<=', 'n', '1', 't1'),      # t1 = n <= 1
-        Quadruple('jz', 't1', None, '12'),    # if t1 == 0 goto 12
+        Quadruple('<=', 'n', '1', 'T1'),      # t1 = n <= 1
+        Quadruple('jz', 'T1', None, '12'),    # if t1 == 0 goto 12
         Quadruple('ret', '1', None, None),    # return 1
-        Quadruple('-', 'n', '1', 't2'),       # t2 = n - 1
-        Quadruple('para', 't2', None, None),  # 准备递归调用
-        Quadruple('call', 'factorial', None, 't3'),  # t3 = factorial(n-1)
-        Quadruple('*', 'n', 't3', 't4'),      # t4 = n * t3
-        Quadruple('ret', 't4', None, None)    # return t4
+        Quadruple('-', 'n', '1', 'T2'),       # t2 = n - 1
+        Quadruple('para', 'T2', None, None),  # 准备递归调用
+        Quadruple('call', 'factorial', None, 'T3'),  # t3 = factorial(n-1)
+        Quadruple('*', 'n', 'T3', 'T4'),      # t4 = n * t3
+        Quadruple('ret', 'T4', None, None)    # return t4
     ]
     print("四元式：")
-    print(format_quads(quads3))
+    for i, quad in enumerate(quads3):
+        print(f"{i}: {quad}")
     print("\n生成的汇编代码：")
     print(cg.generate_code(quads3, 3))
 

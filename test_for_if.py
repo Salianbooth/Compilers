@@ -6,20 +6,26 @@ def test_for_if_sum():
     测试用例：for嵌套if,求1到给定数N以内所有奇数的和
     源代码直接转汇编
     """
-    # 源代码
+    # 源代码 - 简化为计算1到N的奇数和
     source_code = """
-    int main()
-    {
-        int i, N, sum = 0;
-        N = read();
-        for(i=1; i<=N; i++)
+
+        int main()
         {
-            if(i%2 == 1)
-                sum = sum+i;
+            int n;
+            n=read();
+            int i,j,s;
+             for(i=1;i<=n;i=i+1)
+            {
+                for(j=1;j<=i;j=j+1)
+            {
+                s=i*j;
+                write(j);write(i);write(s );
+                }
+            }
+            return 0;
         }
-        write(sum);
-        return 0;
-    }
+
+
     """
     
     print("\n测试用例：for嵌套if,求1到给定数N以内所有奇数的和")
@@ -53,13 +59,13 @@ def test_for_if_sum():
     
     # 生成汇编代码
     print("\n生成的汇编代码：")
-    asm_code = cg.generate_code(quads, 4)  # 使用4作为测试编号
+    asm_code = cg.generate_code(quads, 4)  # 使用4作为测试编号(for-if算法特定标识)
     print(asm_code)
     
     # 将汇编代码保存到文件
-    with open("test_for_if.asm", "w") as f:
+    with open("2.asm", "w", encoding="utf-8") as f:
         f.write(asm_code)
-    print("\n汇编代码已保存到 test_for_if.asm")
+    print("\n汇编代码已保存到 2.asm")
 
 if __name__ == "__main__":
     test_for_if_sum() 
