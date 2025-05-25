@@ -464,7 +464,7 @@ def tokens_to_terminals(lexed_tokens: List[Tuple[int, str]]) -> List[str]:
         'ID': 'ID',
         # 关键字（小写，与文法中一致）
         'int': 'int', 'float': 'float', 'void': 'void',
-        'if': 'if', 'else': 'else', 'while': 'while', 'return': 'return', 'include': 'include',
+        'if': 'if', 'else': 'else', 'while': 'while', 'for': 'for', 'return': 'return', 'include': 'include',
         # 操作符 & 分隔符
         '=': '=', '+': '+', '-': '-', '*': '*', '/': '/', '%': '%',
         '==': '==', '!=': '!=', '<': '<', '>': '>', '<=': '<=', '>=': '>=',
