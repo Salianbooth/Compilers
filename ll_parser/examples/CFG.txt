@@ -4,11 +4,14 @@ PPList → ε
 DeclList → Decl DeclList
 DeclList → ε
 PPDirective → # include < ID . ID >
-Decl → Type ID DeclTail
-DeclTail → ( ParamList ) CompoundStmt
-DeclTail → VarDeclPrime
-VarDeclPrime → = Expr ;
-VarDeclPrime → ;
+Decl → Type VarList
+VarList → ID VarDeclTail VarListTail
+VarListTail → , ID VarDeclTail VarListTail
+VarListTail → ;
+VarDeclTail → ( ParamList ) CompoundStmt
+VarDeclTail → VarDeclPrime
+VarDeclPrime → = Expr
+VarDeclPrime → ε
 Type → int
 Type → float
 Type → void
@@ -23,6 +26,7 @@ Stmt → ExprStmt
 Stmt → CompoundStmt
 Stmt → IfStmt
 Stmt → WhileStmt
+Stmt → ForStmt
 Stmt → ReturnStmt
 AssignStmt → ID = Expr ;
 ExprStmt → Expr ;
@@ -31,6 +35,7 @@ IfStmt → if ( Expr ) Stmt ElseStmt
 ElseStmt → else Stmt
 ElseStmt → ε
 WhileStmt → while ( Expr ) Stmt
+ForStmt → for ( AssignStmt Expr ; AssignStmt ) Stmt
 ReturnStmt → return Expr ;
 CompoundStmt → { DeclList StmtList }
 StmtList → Stmt StmtList
