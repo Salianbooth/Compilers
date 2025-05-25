@@ -204,8 +204,7 @@ def main():
 
     # 测试源程序
     sample_sources = [
-        'int z = 1 + 2 * (3 - 4) / 5;',
-        'float pi = 3.14;',
+        'for(i = 0;i<2;i++){}',
     ]
     for src in sample_sources:
         print('\nSource:', src)
