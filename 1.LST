@@ -1,0 +1,328 @@
+Microsoft (R) Macro Assembler Version 6.11		    05/25/25 15:55:33
+1.asm							     Page 1 - 1
+
+
+				; Program: Sum of odd numbers
+				; Description: Calculate sum of odd numbers from 1 to N
+
+				ASSUME CS:CODE,DS:DATA,SS:STACK,ES:EXTENDED
+
+ 0000				EXTENDED SEGMENT
+ 0000  0400 [			    DB 1024 DUP(0)
+        00
+       ]
+ 0400				EXTENDED ENDS
+
+ 0000				STACK SEGMENT
+ 0000  0400 [			    DB 1024 DUP(0)
+        00
+       ]
+ 0400				STACK ENDS
+
+ 0000				DATA SEGMENT
+ 0000  0100 [			    _buff_p DB 256 DUP (24h)
+        24
+       ]
+ 0100  0100 [			    _buff_s DB 256 DUP (0)
+        00
+       ]
+ 0200 0A 4F 75 74 70 75		    _msg_p DB 0ah,'Output:',0
+       74 3A 00
+ 0209 0A 49 6E 70 75 74		    _msg_s DB 0ah,'Input:',0
+       3A 00
+ 0211 0D 0A 24			    next_row DB 0dh,0ah,'$'
+ 0214 69 6E 70 75 74 20		    error DB 'input error, please re-enter: ','$'
+       65 72 72 6F 72 2C
+       20 70 6C 65 61 73
+       65 20 72 65 2D 65
+       6E 74 65 72 3A 20
+       24
+ 0233 0000			    sum     DW 0
+ 0235 0000			    N       DW 0
+ 0237 0000			    i       DW 0
+ 0239 0000			    T0      DW 0
+ 023B 0000			    T1      DW 0
+ 023D 0000			    T2      DW 0
+ 023F 0000			    T3      DW 0
+ 0241 0000			    T4      DW 0
+ 0243 0000			    T5      DW 0
+ 0245 0000			    T6      DW 0
+ 0247 0000			    temp_sum DW 0   ; 新增临时变量用于保存sum值
+ 0249				DATA ENDS
+
+ 0000				CODE SEGMENT
+ 0000				START:
+				    ; Initialize segments
+ 0000  B8 ---- R		    MOV AX,DATA
+ 0003  8E D8			    MOV DS,AX
+ 0005  B8 ---- R		    MOV AX,STACK
+ 0008  8E D0			    MOV SS,AX
+ 000A  B8 ---- R		    MOV AX,EXTENDED
+ 000D  8E C0			    MOV ES,AX
+ 000F  BC 0400			    MOV SP,1024
+ 0012  8B EC			    MOV BP,SP
+
+				    ; Program start
+ 0014  C7 06 0233 R 0000	    MOV sum, 0    ; Initialize sum
+				    
+				    ; Read input N
+ 001A  E8 003B			    CALL read
+ 001D  A3 0235 R		    MOV N, AX     ; N = read()
+				    
+				    ; Initialize loop counter
+ 0020  C7 06 0237 R 0001	    MOV i, 1      ; i = 1
+				    
+ 0026				FOR_LOOP:
+				    ; Check loop condition i <= N
+ 0026  A1 0237 R		    MOV AX, i
+ 0029  3B 06 0235 R		    CMP AX, N
+ 002D  7F 1C			    JG QUIT       ; if i>N then exit loop
+				    
+				    ; Calculate i%2
+ 002F  A1 0237 R		    MOV AX, i
+ 0032  B3 02			    MOV BL, 2
+ 0034  F6 F3			    DIV BL        ; result in AL, remainder in AH
+				    
+				    ; Check if i is odd
+ 0036  80 FC 01			    CMP AH, 1
+ 0039  75 0A			    JNE NEXT      ; if not odd, skip addition
+				    
+				    ; Add odd number
+ 003B  A1 0233 R		    MOV AX, sum
+ 003E  03 06 0237 R		    ADD AX, i
+ 0042  A3 0233 R		    MOV sum, AX
+				    
+ 0045				NEXT:
+				    ; Update loop counter
+ 0045  FF 06 0237 R		    INC i         ; i++
+ 0049  EB DB			    JMP FOR_LOOP
+				    
+ 004B				QUIT:
+				    ; Output result
+ 004B  A1 0233 R		    MOV AX, sum
+ 004E  A3 0247 R		    MOV temp_sum, AX  ; 保存sum到临时变量
+ 0051  E8 006C			    CALL write    ; call write function
+				    
+				    ; Exit program
+ 0054  B4 4C			    MOV AH, 4ch
+ 0056  CD 21			    INT 21h
+
+ 0058				read PROC NEAR
+ 0058  55			    PUSH BP
+ 0059  8B EC			    MOV BP,SP
+ 005B  BB 0209 R		    MOV BX,OFFSET _msg_s
+ 005E  E8 00A2			    CALL _print
+ 0061  53			    PUSH BX
+ 0062  51			    PUSH CX
+ 0063  52			    PUSH DX
+				    
+ 0064				    proc_pre_start:
+ 0064  33 C0			    XOR AX,AX
+ 0066  33 DB			    XOR BX,BX
+ 0068  33 C9			    XOR CX,CX
+ 006A  33 D2			    XOR DX,DX
+				    
+ 006C				    proc_judge_sign:
+ 006C  B4 01			    MOV AH,1
+ 006E  CD 21			    INT 21h
+ 0070  3C 2D			    CMP AL,'-'
+ 0072  75 05			    JNE proc_next
+ 0074  BA FFFF			    MOV DX,0ffffh
+ 0077  EB 19			    JMP proc_digit_in
+				    
+ 0079				    proc_next:
+ 0079  3C 30			    CMP AL,30h
+ 007B  72 2A			    JB proc_unexpected
+ 007D  3C 39			    CMP AL,39h
+ 007F  77 26			    JA proc_unexpected
+ 0081  2C 30			    SUB AL,30h
+ 0083  D1 E3			    SHL BX,1
+ 0085  8B CB			    MOV CX,BX
+ 0087  D1 E3			    SHL BX,1
+ 0089  D1 E3			    SHL BX,1
+ 008B  03 D9			    ADD BX,CX
+ 008D  02 D8			    ADD BL,AL
+ 008F  80 D7 00			    ADC BH,0
+				    
+ 0092				    proc_digit_in:
+ 0092  B4 01			    MOV AH,1
+ 0094  CD 21			    INT 21h
+ 0096  3C 0D			    CMP AL,0dh
+ 0098  74 02			    JE proc_save
+ 009A  EB DD			    JMP proc_next
+				    
+ 009C				    proc_save:
+ 009C  83 FA FF			    CMP DX,0ffffh
+ 009F  75 02			    JNE proc_result_save
+ 00A1  F7 DB			    NEG BX
+				    
+ 00A3				    proc_result_save:
+ 00A3  8B C3			    MOV AX,BX
+ 00A5  EB 14			    JMP proc_input_done
+				    
+ 00A7				    proc_unexpected:
+ 00A7  3C 0D			    CMP AL,0dh
+ 00A9  74 F1			    JE proc_save
+ 00AB  BA 0211 R		    MOV DX,OFFSET next_row
+ 00AE  B4 09			    MOV AH,9
+ 00B0  CD 21			    INT 21h
+ 00B2  BA 0214 R		    MOV DX,OFFSET error
+ 00B5  B4 09			    MOV AH,9
+ 00B7  CD 21			    INT 21h
+ 00B9  EB A9			    JMP proc_pre_start
+				    
+ 00BB				    proc_input_done:
+ 00BB  5A			    POP DX
+ 00BC  59			    POP CX
+ 00BD  5B			    POP BX
+ 00BE  5D			    POP BP
+ 00BF  C3			    RET
+ 00C0				read ENDP
+
+ 00C0				write PROC NEAR
+				    ; 使用临时变量temp_sum而不是AX
+ 00C0  BB 0200 R		    MOV BX,OFFSET _msg_p
+ 00C3  E8 003D			    CALL _print
+				    
+ 00C6  A1 0247 R		    MOV AX,temp_sum  ; 从临时变量加载值
+ 00C9  8B D8			    MOV BX,AX        ; 保存到BX
+				    
+				    ; 检查负数
+ 00CB  F7 C3 8000		    TEST BX,8000h
+ 00CF  74 0A			    JZ skip_neg
+ 00D1  F7 DB			    NEG BX           ; 如果是负数，取绝对值
+ 00D3  53			    PUSH BX          ; 保存BX
+ 00D4  B2 2D			    MOV DL,'-'
+ 00D6  B4 02			    MOV AH,2
+ 00D8  CD 21			    INT 21h          ; 输出负号
+ 00DA  5B			    POP BX           ; 恢复BX
+				    
+ 00DB				skip_neg:
+				    ; 将数字转换为ASCII并显示
+ 00DB  8B C3			    MOV AX,BX
+ 00DD  33 C9			    XOR CX,CX        ; 清零计数器
+ 00DF  BB 000A			    MOV BX,10        ; 除数
+				    
+ 00E2				conv_loop:
+ 00E2  33 D2			    XOR DX,DX
+ 00E4  F7 F3			    DIV BX           ; AX / 10, 商在AX, 余数在DX
+ 00E6  52			    PUSH DX          ; 保存余数（最低位数字）
+ 00E7  41			    INC CX           ; 增加计数器
+ 00E8  85 C0			    TEST AX,AX       ; 检查是否还有更多位
+ 00EA  75 F6			    JNZ conv_loop    ; 如果不是零，继续循环
+				    
+ 00EC				print_digits:
+ 00EC  5A			    POP DX           ; 取出一个数字
+ 00ED  80 C2 30			    ADD DL,'0'       ; 转换为ASCII
+ 00F0  B4 02			    MOV AH,2
+ 00F2  CD 21			    INT 21h          ; 显示数字
+ 00F4  E2 F6			    LOOP print_digits ; 继续直到所有数字都显示完
+				    
+				    ; 输出换行
+ 00F6  B2 0D			    MOV DL,13        ; CR
+ 00F8  B4 02			    MOV AH,2
+ 00FA  CD 21			    INT 21h
+ 00FC  B2 0A			    MOV DL,10        ; LF
+ 00FE  B4 02			    MOV AH,2
+ 0100  CD 21			    INT 21h
+				    
+ 0102  C3			    RET
+ 0103				write ENDP
+
+ 0103				_print PROC NEAR
+ 0103  BE 0000			    MOV SI,0
+ 0106  BF 0000 R		    MOV DI,OFFSET _buff_p
+				    
+ 0109				    _p_lp_1:
+ 0109  8A 00			    MOV AL,DS:[BX+SI]
+ 010B  3C 00			    CMP AL,0
+ 010D  74 06			    JE _p_brk_1
+ 010F  88 05			    MOV DS:[DI],AL
+ 0111  46			    INC SI
+ 0112  47			    INC DI
+ 0113  EB F4			    JMP SHORT _p_lp_1
+				    
+ 0115				    _p_brk_1:
+ 0115  BA 0000 R		    MOV DX,OFFSET _buff_p
+ 0118  B4 09			    MOV AH,09h
+ 011A  CD 21			    INT 21h
+ 011C  8B CE			    MOV CX,SI
+ 011E  BF 0000 R		    MOV DI,OFFSET _buff_p
+				    
+ 0121				    _p_lp_2:
+ 0121  B0 24			    MOV AL,24h
+ 0123  88 05			    MOV DS:[DI],AL
+ 0125  47			    INC DI
+ 0126  E2 F9			    LOOP _p_lp_2
+ 0128  C3			    RET
+ 0129				_print ENDP
+
+ 0129				CODE ENDS
+				END START
+Microsoft (R) Macro Assembler Version 6.11		    05/25/25 15:55:33
+1.asm							     Symbols 2 - 1
+
+
+
+
+Segments and Groups:
+
+                N a m e                 Size     Length   Align   Combine Class
+
+CODE . . . . . . . . . . . . . .	16 Bit	 0129	  Para	  Private 
+DATA . . . . . . . . . . . . . .	16 Bit	 0249	  Para	  Private 
+EXTENDED . . . . . . . . . . . .	16 Bit	 0400	  Para	  Private 
+STACK  . . . . . . . . . . . . .	16 Bit	 0400	  Para	  Private 
+
+
+Procedures,  parameters and locals:
+
+                N a m e                 Type     Value    Attr
+
+_print . . . . . . . . . . . . .	P Near	 0103	  CODE	Length= 0026 Public
+  _p_lp_1  . . . . . . . . . . .	L Near	 0109	  CODE	
+  _p_brk_1 . . . . . . . . . . .	L Near	 0115	  CODE	
+  _p_lp_2  . . . . . . . . . . .	L Near	 0121	  CODE	
+read . . . . . . . . . . . . . .	P Near	 0058	  CODE	Length= 0068 Public
+  proc_pre_start . . . . . . . .	L Near	 0064	  CODE	
+  proc_judge_sign  . . . . . . .	L Near	 006C	  CODE	
+  proc_next  . . . . . . . . . .	L Near	 0079	  CODE	
+  proc_digit_in  . . . . . . . .	L Near	 0092	  CODE	
+  proc_save  . . . . . . . . . .	L Near	 009C	  CODE	
+  proc_result_save . . . . . . .	L Near	 00A3	  CODE	
+  proc_unexpected  . . . . . . .	L Near	 00A7	  CODE	
+  proc_input_done  . . . . . . .	L Near	 00BB	  CODE	
+write  . . . . . . . . . . . . .	P Near	 00C0	  CODE	Length= 0043 Public
+  skip_neg . . . . . . . . . . .	L Near	 00DB	  CODE	
+  conv_loop  . . . . . . . . . .	L Near	 00E2	  CODE	
+  print_digits . . . . . . . . .	L Near	 00EC	  CODE	
+
+
+Symbols:
+
+                N a m e                 Type     Value    Attr
+
+FOR_LOOP . . . . . . . . . . . .	L Near	 0026	  CODE	
+NEXT . . . . . . . . . . . . . .	L Near	 0045	  CODE	
+N  . . . . . . . . . . . . . . .	Word	 0235	  DATA	
+QUIT . . . . . . . . . . . . . .	L Near	 004B	  CODE	
+START  . . . . . . . . . . . . .	L Near	 0000	  CODE	
+T0 . . . . . . . . . . . . . . .	Word	 0239	  DATA	
+T1 . . . . . . . . . . . . . . .	Word	 023B	  DATA	
+T2 . . . . . . . . . . . . . . .	Word	 023D	  DATA	
+T3 . . . . . . . . . . . . . . .	Word	 023F	  DATA	
+T4 . . . . . . . . . . . . . . .	Word	 0241	  DATA	
+T5 . . . . . . . . . . . . . . .	Word	 0243	  DATA	
+T6 . . . . . . . . . . . . . . .	Word	 0245	  DATA	
+_buff_p  . . . . . . . . . . . .	Byte	 0000	  DATA	
+_buff_s  . . . . . . . . . . . .	Byte	 0100	  DATA	
+_msg_p . . . . . . . . . . . . .	Byte	 0200	  DATA	
+_msg_s . . . . . . . . . . . . .	Byte	 0209	  DATA	
+error  . . . . . . . . . . . . .	Byte	 0214	  DATA	
+i  . . . . . . . . . . . . . . .	Word	 0237	  DATA	
+next_row . . . . . . . . . . . .	Byte	 0211	  DATA	
+sum  . . . . . . . . . . . . . .	Word	 0233	  DATA	
+temp_sum . . . . . . . . . . . .	Word	 0247	  DATA	
+
+	   0 Warnings
+	   0 Errors
