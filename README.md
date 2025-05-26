@@ -38,6 +38,8 @@ Compilers/
 ## 贡献
 欢迎任何形式的贡献！请提交问题或拉取请求。
 
+- 联系邮箱：Salianbooth.@gmail.com
+
 ## 许可证
 本项目采用 MIT 许可证，详细信息请参见 LICENSE 文件。
 
