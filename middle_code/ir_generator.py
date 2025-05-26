@@ -592,6 +592,21 @@ class IRBuilder:
         """获取所有字符串字面量"""
         return self.string_literals
 
+    def make_list(self, index: int) -> list[int]:
+        """创建一个仅包含 index 的列表，用于回填目标地址"""
+        return [index]
+
+    def backpatch(self, patch_list: list[int], target_label: str) -> None:
+        """
+        回填跳转目标地址为 target_label
+        patch_list 是指令索引列表（如 JUMP_IF_FALSE 或 JUMP）
+        """
+        for idx in patch_list:
+            quad = self.quads[idx]
+            # 一般跳转指令格式为 ('JUMP_IF_FALSE', cond, None, None)
+            # 将 label 回填到最后一个字段
+            self.quads[idx] = (quad[0], quad[1], quad[2], target_label)
+
     def gen_if(self, node: Node) -> Optional[bool]:
         """生成 if-else 语句的中间代码，支持回填"""
         # --- 提取条件、then 分支和 else 分支节点 ---
