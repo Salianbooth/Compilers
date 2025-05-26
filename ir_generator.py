@@ -397,7 +397,7 @@ class IRBuilder:
         if label == 'IfStmt':
             # 确保有足够的子节点
             if len(node.children) < 4:
-                print(f"Warning: malformed if statement at {node}")
+                # print(f"Warning: malformed if statement at {node}")
                 return None
             
             # 找到条件表达式和then语句
@@ -415,7 +415,7 @@ class IRBuilder:
                         else_node = child
 
             if not (cond_node and then_node):
-                print(f"Warning: incomplete if statement at {node}")
+                # print(f"Warning: incomplete if statement at {node}")
                 return None
 
             # 生成条件判断代码
@@ -582,7 +582,7 @@ class IRBuilder:
             return ret_temp
 
         # 未处理的节点类型
-        print(f"Warning: unhandled AST node {label}")
+        # print(f"Warning: unhandled AST node {label}")
         for child in node.children:
             self.gen(child)
         return None

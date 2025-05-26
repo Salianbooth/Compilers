@@ -10,10 +10,9 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..
 sys.path.insert(0, project_root)
 
 from Compilers.ll_parser.core.grammar_oop import Grammar, Production, load_grammar_from_file
-from Compilers.ll_parser.core.first_follow import compute_first, compute_follow
 from Compilers.ll_parser.core.parse_table import build_parse_table
 from Compilers.ll_parser.core.parse_tree import Node, print_tree, cst_to_ast
-from Compilers.manual_lexer import lexical_analysis, tokens_to_terminals
+from Compilers.lexer.manual_lexer import lexical_analysis, tokens_to_terminals
 
 
 def parse_with_tree(

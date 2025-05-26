@@ -1,7 +1,7 @@
-from typing import Dict, List, Tuple, Optional, Any
+from typing import Dict, List, Tuple, Any
 import os
 
-from manual_lexer import lexical_analysis, tokens_to_terminals
+from Compilers.lexer.manual_lexer import lexical_analysis, tokens_to_terminals
 from ll_parser.core.ll_main import parse_with_tree
 from ll_parser.core.grammar_oop import Grammar, load_grammar_from_file
 from ll_parser.core.parse_table import build_parse_table
@@ -39,7 +39,7 @@ class Compiler:
             return lexical_analysis(source_code)
         else:
             # 如果需要自动模式，可以在这里添加
-            from auto_lexer import analyze
+            from Compilers.lexer.auto_lexer import analyze
             return analyze(source_code)
     
     def run_syntax_analysis(self, tokens: List) -> Tuple[Any, Any]:
@@ -183,9 +183,9 @@ if __name__ == '__main__':
         print("\n词法分析结果:")
         for i, (syn, tok) in enumerate(result['tokens']):
             print(f"{i}: {tok} ({syn})")
-        
+
         print("\n中间代码生成结果:")
         print(format_quads(result['quads']))
         print(format_string_literals(result['string_literals']))
     else:
-        print(f"编译失败: {result['error']}") 
+        print(f"编译失败: {result['error']}")

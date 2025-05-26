@@ -1,5 +1,4 @@
 import sys
-import os
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QAction, QFileDialog, QTextEdit,
     QSplitter, QWidget, QPlainTextEdit
@@ -7,14 +6,12 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QFont  # 用于创建并设置字体
 from PyQt5.QtCore import Qt, QRect, QSize
 from PyQt5.QtGui import QPainter, QColor, QFontMetricsF
-from manual_lexer import lexical_analysis as manual_lexical_analysis
-from manual_lexer import tokens_to_terminals
-from auto_lexer import lexer, analyze
+from Compilers.lexer.manual_lexer import lexical_analysis as manual_lexical_analysis
+from Compilers.lexer.manual_lexer import tokens_to_terminals
+from Compilers.lexer.auto_lexer import lexer, analyze
 
 # 导入编译器组件
 from Compilers.ll_parser.core.ll_main import parse_with_tree
-from Compilers.ll_parser.core.grammar_oop import Grammar, load_grammar_from_file
-from Compilers.ll_parser.core.parse_table import build_parse_table
 from Compilers.ll_parser.core.parse_tree import cst_to_ast
 from Compilers.semantic_analyzer import run_semantic_analysis
 from Compilers.ir_generator import IRBuilder
