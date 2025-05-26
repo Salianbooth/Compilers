@@ -5,14 +5,14 @@ from Compilers.object_code.code_generator import Quadruple
 @dataclass
 class Node:
     """语法树节点类"""
-    label: str
-    children: List['Node'] = None
-    value: str = None
-    text: str = None
+    label: str  # 节点的标签（类型）
+    children: List['Node'] = None  # 子节点列表
+    value: str = None  # 节点的值
+    text: str = None  # 节点的文本表示
 
     def __post_init__(self):
         if self.children is None:
-            self.children = []
+            self.children = []  # 初始化子节点列表
 
 class IRBuilder:
     """中间代码生成器"""
@@ -27,31 +27,32 @@ class IRBuilder:
     def new_temp(self) -> str:
         """生成新的临时变量名，使用函数前缀"""
         prefix = f"{self.current_func}_" if self.current_func else ""
-        name = f"{prefix}t{self.temp_count}"
-        self.temp_count += 1
+        name = f"{prefix}t{self.temp_count}"  # 生成临时变量名
+        self.temp_count += 1  # 增加临时变量计数
         return name
 
     def new_label(self) -> str:
         """生成新的标签名，使用函数前缀"""
         prefix = f"{self.current_func}_" if self.current_func else ""
-        name = f"{prefix}L{self.label_count}"
-        self.label_count += 1
+        name = f"{prefix}L{self.label_count}"  # 生成标签名
+        self.label_count += 1  # 增加标签计数
         return name
 
     def emit(self, op: str, arg1: Optional[str] = None,
              arg2: Optional[str] = None, result: Optional[str] = None) -> None:
         """生成一条四元式"""
-        quad = Quadruple(op=op, arg1=arg1, arg2=arg2, result=result)
+        quad = Quadruple(op=op, arg1=arg1, arg2=arg2, result=result)  # 创建四元式
         if self.current_func is None and op not in ['FUNC_BEGIN', 'FUNC_END', 'LABEL']:
             # 全局初始化相关的四元式
             self.global_inits.append(quad)
         else:
-            self.quads.append(quad)
+            self.quads.append(quad)  # 添加四元式到列表
 
     def gen_binary_op(self, node: Node, op_node: Node, left: str, right: str) -> str:
         """处理二元运算"""
-        temp = self.new_temp()
+        temp = self.new_temp()  # 创建临时变量
         if op_node.value in ['>', '<', '>=', '<=', '==', '!=']:
+            # 处理关系运算符
             op = op_node.value.upper()
             if op == '<=': op = 'LE'
             elif op == '>=': op = 'GE'
@@ -60,40 +61,41 @@ class IRBuilder:
             elif op == '>': op = 'GT'
             elif op == '<': op = 'LT'
         else:
+            # 处理算术运算符
             op_map = {'+': 'ADD', '-': 'SUB', '*': 'MUL', '/': 'DIV', 
                      '%': 'MOD', '&&': 'AND', '||': 'OR'}
             op = op_map.get(op_node.value, op_node.value)
-        self.emit(op, left, right, temp)
-        return temp
+        self.emit(op, left, right, temp)  # 生成四元式
+        return temp  # 返回临时变量名
 
     def gen_short_circuit_and(self, left_node: Node, right_node: Node) -> str:
         """生成短路与运算的代码"""
-        label_false = self.new_label()
+        label_false = self.new_label()  # 创建跳转标签
         
         # 计算左操作数
         left = self.gen(left_node)
-        self.emit('JUMP_IF_FALSE', left, None, label_false)
+        self.emit('JUMP_IF_FALSE', left, None, label_false)  # 如果左操作数为假，跳转
         
         # 计算右操作数
         right = self.gen(right_node)
         
         # 结果为右操作数的值
-        self.emit('LABEL', None, None, label_false)
+        self.emit('LABEL', None, None, label_false)  # 标签位置
         return right
 
     def gen_short_circuit_or(self, left_node: Node, right_node: Node) -> str:
         """生成短路或运算的代码"""
-        label_true = self.new_label()
+        label_true = self.new_label()  # 创建跳转标签
         
         # 计算左操作数
         left = self.gen(left_node)
-        self.emit('JUMP_IF_TRUE', left, None, label_true)
+        self.emit('JUMP_IF_TRUE', left, None, label_true)  # 如果左操作数为真，跳转
         
         # 计算右操作数
         right = self.gen(right_node)
         
         # 结果为右操作数的值
-        self.emit('LABEL', None, None, label_true)
+        self.emit('LABEL', None, None, label_true)  # 标签位置
         return right
 
     def gen(self, node: Node) -> Optional[str]:
@@ -116,7 +118,7 @@ class IRBuilder:
                     self.emit(*init)
                 self.global_inits.clear()
             for child in node.children:
-                self.gen(child)
+                self.gen(child)  # 递归生成子节点的中间代码
             return None
 
         # 处理类型节点
@@ -132,30 +134,30 @@ class IRBuilder:
             if len(node.children) >= 1 and node.children[0].label == 'read':
                 # 处理read()
                 temp = self.new_temp()
-                self.emit('CALL', 'read', '0', temp)
+                self.emit('CALL', 'read', '0', temp)  # 调用read函数
                 return temp
             elif len(node.children) >= 2 and node.children[0].label == 'write':
                 # 处理write(expr)
                 expr_node = node.children[1]
                 expr_temp = self.gen(expr_node)
                 if expr_temp:
-                    self.emit('PARAM', expr_temp, None, None)
-                    self.emit('CALL', 'write', '1', None)
+                    self.emit('PARAM', expr_temp, None, None)  # 传递参数
+                    self.emit('CALL', 'write', '1', None)  # 调用write函数
                 return None
             elif node.value:
                 # 处理其他基本表达式（ID、字面量等）
                 temp = self.new_temp()
-                self.emit('LOAD_CONST', str(node.value), None, temp)
+                self.emit('LOAD_CONST', str(node.value), None, temp)  # 加载常量
                 return temp
             elif node.label == 'ID':
                 temp = self.new_temp()
-                self.emit('LOAD_VAR', node.value, None, temp)
+                self.emit('LOAD_VAR', node.value, None, temp)  # 加载变量
                 return temp
 
         # 处理表达式语句
         if label == 'ExprStmt':
             if len(node.children) >= 1:
-                return self.gen(node.children[0])
+                return self.gen(node.children[0])  # 生成表达式语句的中间代码
             return None
 
         # 处理赋值语句
@@ -166,7 +168,7 @@ class IRBuilder:
                 if id_node.label == 'ID':
                     expr_temp = self.gen(expr_node)
                     if expr_temp:
-                        self.emit('STORE_VAR', expr_temp, None, id_node.value)
+                        self.emit('STORE_VAR', expr_temp, None, id_node.value)  # 存储变量
                     return expr_temp
             return None
 
@@ -207,7 +209,7 @@ class IRBuilder:
                         if id_node.label == 'ID':
                             expr_temp = self.gen(expr_node)
                             if expr_temp:
-                                self.emit('STORE_VAR', expr_temp, None, id_node.value)
+                                self.emit('STORE_VAR', expr_temp, None, id_node.value)  # 存储变量
                 else:
                     self.gen(init_expr)
             
@@ -218,7 +220,7 @@ class IRBuilder:
             if cond_expr:
                 cond = self.gen(cond_expr)
                 if cond:
-                    self.emit('JUMP_IF_FALSE', cond, None, loop_end)
+                    self.emit('JUMP_IF_FALSE', cond, None, loop_end)  # 条件为假时跳转
             
             # 生成循环体代码
             if body:
@@ -233,10 +235,10 @@ class IRBuilder:
                         op_node = incr_expr.children[1]
                         if id_node.label == 'ID' and op_node.value == '++':
                             temp1 = self.new_temp()
-                            self.emit('LOAD_VAR', id_node.value, None, temp1)
+                            self.emit('LOAD_VAR', id_node.value, None, temp1)  # 加载变量
                             temp2 = self.new_temp()
-                            self.emit('ADD', temp1, '1', temp2)
-                            self.emit('STORE_VAR', temp2, None, id_node.value)
+                            self.emit('ADD', temp1, '1', temp2)  # 递增
+                            self.emit('STORE_VAR', temp2, None, id_node.value)  # 存储新值
                 else:
                     self.gen(incr_expr)
             
@@ -253,14 +255,14 @@ class IRBuilder:
             expr_node = node.children[1]
             expr_temp = self.gen(expr_node)
             if expr_temp:
-                self.emit('PARAM', expr_temp, None, None)
-                self.emit('CALL', 'write', '1', None)
+                self.emit('PARAM', expr_temp, None, None)  # 传递参数
+                self.emit('CALL', 'write', '1', None)  # 调用write函数
             return None
 
         # 处理ID节点
         if label == 'ID':
             temp = self.new_temp()
-            self.emit('LOAD_VAR', node.value, None, temp)
+            self.emit('LOAD_VAR', node.value, None, temp)  # 加载变量
             return temp
 
         # 处理后缀表达式（如i++）
@@ -283,9 +285,9 @@ class IRBuilder:
                     # 生成新值
                     temp2 = self.new_temp()
                     if op_node.value == '++':
-                        self.emit('ADD', temp1, '1', temp2)
+                        self.emit('ADD', temp1, '1', temp2)  # 递增
                     else:  # '--'
-                        self.emit('SUB', temp1, '1', temp2)
+                        self.emit('SUB', temp1, '1', temp2)  # 递减
                     
                     # 存储新值
                     self.emit('STORE_VAR', temp2, None, id_node.value)
@@ -325,9 +327,9 @@ class IRBuilder:
                                     break
                             if param_name:
                                 temp = self.new_temp()
-                                self.emit('LOAD_PARAM', param_name, None, temp)
-                                self.emit('STORE_VAR', temp, None, param_name)
-                
+                                self.emit('LOAD_PARAM', param_name, None, temp)  # 加载参数
+                                self.emit('STORE_VAR', temp, None, param_name)  # 存储参数
+                                
                 # 处理函数体
                 has_return = False
                 for child in node.children:
@@ -338,7 +340,7 @@ class IRBuilder:
                 # 如果没有显式返回，添加默认返回
                 if not has_return:
                     temp = self.new_temp()
-                    self.emit('LOAD_CONST', '0', None, temp)
+                    self.emit('LOAD_CONST', '0', None, temp)  # 默认返回0
                     self.emit('RETURN', temp, None, None)
                 
                 # 生成函数出口
@@ -364,7 +366,7 @@ class IRBuilder:
                         if len(init_node.children) > 1:
                             init_val = self.gen(init_node.children[1])
                             if init_val:
-                                self.emit('STORE_VAR', init_val, None, var_name)
+                                self.emit('STORE_VAR', init_val, None, var_name)  # 存储初始化值
                 return None
 
         # 复合语句
@@ -384,20 +386,19 @@ class IRBuilder:
         # else 语句
         if label == 'ElseStmt':
             if node.children:
-                return self.gen(node.children[0])
+                return self.gen(node.children[0])  # 生成else分支的中间代码
             return None
 
         # 整数常量
         if label == 'INT_LITERAL':
             temp = self.new_temp()
-            self.emit('LOAD_CONST', str(node.value), None, temp)
+            self.emit('LOAD_CONST', str(node.value), None, temp)  # 加载整数常量
             return temp
 
         # if 语句
         if label == 'IfStmt':
             # 确保有足够的子节点
             if len(node.children) < 4:
-                # print(f"Warning: malformed if statement at {node}")
                 return None
             
             # 找到条件表达式和then语句
@@ -415,7 +416,6 @@ class IRBuilder:
                         else_node = child
 
             if not (cond_node and then_node):
-                # print(f"Warning: incomplete if statement at {node}")
                 return None
 
             # 生成条件判断代码
@@ -428,13 +428,10 @@ class IRBuilder:
                 label_false = self.new_label()  # 条件为假时跳转的标签
                 
                 # 先计算并合并条件
-                # 计算左操作数 x > 0
-                left_temp = self.gen(left_node)
-                # 计算右操作数 y > 0
-                right_temp = self.gen(right_node)
-                # 合并两个条件
+                left_temp = self.gen(left_node)  # 计算左操作数
+                right_temp = self.gen(right_node)  # 计算右操作数
                 and_temp = self.new_temp()
-                self.emit('AND', left_temp, right_temp, and_temp)
+                self.emit('AND', left_temp, right_temp, and_temp)  # 合并条件
                 
                 # 根据合并后的条件决定跳转
                 self.emit('JUMP_IF_FALSE', and_temp, None, label_false)
@@ -466,7 +463,7 @@ class IRBuilder:
                     if i + 1 < len(node.children):
                         op_node = node.children[i]
                         right = self.gen(node.children[i + 1])
-                        left = self.gen_binary_op(node, op_node, left, right)
+                        left = self.gen_binary_op(node, op_node, left, right)  # 处理二元运算
                 return left
 
         # 短路逻辑运算
@@ -573,23 +570,23 @@ class IRBuilder:
                 if arg.label not in [';', '(', ')']:
                     arg_temp = self.gen(arg)
                     if arg_temp:
-                        self.emit('PARAM', arg_temp, None, None)
+                        self.emit('PARAM', arg_temp, None, None)  # 传递参数
                         args.append(arg_temp)
             
             # 生成调用指令
             ret_temp = self.new_temp()
-            self.emit('CALL', func_name, str(len(args)), ret_temp)
+            self.emit('CALL', func_name, str(len(args)), ret_temp)  # 调用函数
             return ret_temp
 
         # 未处理的节点类型
         # print(f"Warning: unhandled AST node {label}")
         for child in node.children:
-            self.gen(child)
+            self.gen(child)  # 递归处理子节点
         return None
 
     def get_quads(self) -> List[Quadruple]:
         """获取生成的所有四元式"""
-        return self.quads  # 不再重复添加全局初始化
+        return self.quads  # 返回生成的四元式列表
 
     def get_string_literals(self) -> Dict[str, str]:
         """获取所有字符串字面量"""
@@ -766,5 +763,5 @@ if __name__ == '__main__':
     print("-" * 50)
     program_ast = create_test_ast()
     irb = IRBuilder()
-    irb.gen(program_ast)
-    irb.print_quads() 
+    irb.gen(program_ast)  # 生成中间代码
+    irb.print_quads()  # 打印生成的四元式 
