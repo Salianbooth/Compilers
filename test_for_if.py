@@ -1,6 +1,6 @@
 #test_for_if.py
-from code_generator import CodeGenerator, Quadruple
-from compiler import Compiler
+from Compilers.object_code.code_generator import CodeGenerator
+from Compilers.compiler import Compiler
 
 def test_for_if_sum():
     """
@@ -64,8 +64,8 @@ def test_for_if_sum():
     print(asm_code)
     
     # 将汇编代码保存到文件
-    # with open("2.asm", "w", encoding="utf-8") as f:
-    #     f.write(asm_code)
+    with open("D:\\Project\\PyCharm\\PyWindow\\Compilers\\test\\output\\2.asm", "w", encoding="utf-8") as f:
+         f.write(asm_code)
     # print("\n汇编代码已保存到 2.asm")
 
 if __name__ == "__main__":

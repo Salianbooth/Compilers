@@ -13,8 +13,8 @@ from Compilers.lexer.auto_lexer import lexer, analyze
 # 导入编译器组件
 from Compilers.ll_parser.core.ll_main import parse_with_tree
 from Compilers.ll_parser.core.parse_tree import cst_to_ast
-from Compilers.semantic_analyzer import run_semantic_analysis
-from Compilers.ir_generator import IRBuilder
+from Compilers.semantic.semantic_analyzer import run_semantic_analysis
+from Compilers.middle_code.ir_generator import IRBuilder
 from Compilers.compiler import Compiler, format_quads, format_string_literals
 
 

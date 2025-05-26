@@ -1,6 +1,6 @@
-from typing import List, Optional, Tuple, Dict
+from typing import List, Optional, Dict
 from dataclasses import dataclass
-from code_generator import Quadruple
+from Compilers.object_code.code_generator import Quadruple
 
 @dataclass
 class Node:

@@ -2,12 +2,12 @@ from typing import Dict, List, Tuple, Any
 import os
 
 from Compilers.lexer.manual_lexer import lexical_analysis, tokens_to_terminals
-from ll_parser.core.ll_main import parse_with_tree
-from ll_parser.core.grammar_oop import Grammar, load_grammar_from_file
-from ll_parser.core.parse_table import build_parse_table
-from ll_parser.core.parse_tree import cst_to_ast
-from semantic_analyzer import run_semantic_analysis
-from ir_generator import IRBuilder
+from Compilers.ll_parser.core.ll_main import parse_with_tree
+from Compilers.ll_parser.core.grammar_oop import Grammar, load_grammar_from_file
+from Compilers.ll_parser.core.parse_table import build_parse_table
+from Compilers.ll_parser.core.parse_tree import cst_to_ast
+from Compilers.semantic.semantic_analyzer import run_semantic_analysis
+from Compilers.middle_code.ir_generator import IRBuilder
 
 
 class Compiler:
@@ -18,7 +18,7 @@ class Compiler:
         # 初始化语法分析相关组件
         self.grammar = Grammar()
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        cfg_path = os.path.join(current_dir, 'll_parser', 'examples', 'CFG.txt')
+        cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'll_parser', 'examples', 'CFG.txt')
         load_grammar_from_file(cfg_path, self.grammar)
         self.grammar.finalize(eliminate_lr=True, left_fact=True)
         self.table, self.is_ll1, self.terminals = build_parse_table(self.grammar, start_symbol='Program')
