@@ -604,13 +604,14 @@ class IRBuilder:
             for value, name in self.string_literals.items():
                 print(f"{name}: {value}")
 
+
 def create_test_ast():
     """创建测试用的完整程序AST"""
     # 构造一个完整的程序AST
     program = Node('Program', [
         # 预处理指令
         Node('PPDirective', value='#include <stdio.h>'),
-        
+
         # 全局变量声明
         Node('Decl', [
             Node('Type', value='int'),
@@ -620,7 +621,7 @@ def create_test_ast():
                 Node('INT_LITERAL', value='42')
             ])
         ]),
-        
+
         # factorial函数定义
         Node('Decl', [
             Node('Type', value='int'),
@@ -645,8 +646,7 @@ def create_test_ast():
                     Node('ReturnStmt', [
                         Node('return'),
                         Node('INT_LITERAL', value='1')
-                    ]),
-                    None  # 没有else分支
+                    ])
                 ]),
                 # return n * factorial(n-1);
                 Node('ReturnStmt', [
@@ -665,7 +665,7 @@ def create_test_ast():
                 ])
             ])
         ]),
-        
+
         # sum函数定义
         Node('Decl', [
             Node('Type', value='int'),
@@ -691,7 +691,7 @@ def create_test_ast():
                 ])
             ])
         ]),
-        
+
         # main函数定义
         Node('Decl', [
             Node('Type', value='int'),
@@ -743,8 +743,7 @@ def create_test_ast():
                                 Node('ID', value='x')
                             ], value='factorial')
                         ])
-                    ]),
-                    None  # 没有else分支
+                    ])
                 ]),
                 # return 0;
                 Node('ReturnStmt', [
@@ -754,8 +753,8 @@ def create_test_ast():
             ])
         ])
     ])
-    
     return program
+
 
 if __name__ == '__main__':
     # 运行完整程序AST的测试
@@ -763,5 +762,5 @@ if __name__ == '__main__':
     print("-" * 50)
     program_ast = create_test_ast()
     irb = IRBuilder()
-    irb.gen(program_ast)  # 生成中间代码
-    irb.print_quads()  # 打印生成的四元式 
+    irb.gen(program_ast)
+    irb.print_quads()  # 打印生成的四元式
