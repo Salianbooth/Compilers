@@ -592,6 +592,62 @@ class IRBuilder:
         """获取所有字符串字面量"""
         return self.string_literals
 
+    def gen_if(self, node: Node) -> Optional[bool]:
+        """生成 if-else 语句的中间代码，支持回填"""
+        # --- 提取条件、then 分支和 else 分支节点 ---
+        cond_node = None
+        then_node = None
+        else_node = None
+        # node.children 可能包含 ['if', '(', cond, ')', then_node, ElseStmt?]
+        i = 0
+        # 跳过 'if' 和 '('
+        while i < len(node.children) and node.children[i].label in ['if', '(']:
+            i += 1
+        # 条件表达式
+        if i < len(node.children):
+            cond_node = node.children[i]
+            i += 1
+        # 跳过 ')'
+        while i < len(node.children) and node.children[i].label == ')':
+            i += 1
+        # then 分支
+        if i < len(node.children):
+            then_node = node.children[i]
+            i += 1
+        # else 分支（可选）
+        if i < len(node.children) and node.children[i].label == 'ElseStmt':
+            else_node = node.children[i]
+
+        # --- 生成代码并回填 ---
+        # 1) 计算条件，生成占位跳转
+        cond_temp = self.gen(cond_node)
+        idx_false = len(self.quads)
+        self.emit('JUMP_IF_FALSE', cond_temp, None, None)
+        false_list = self.make_list(idx_false)
+
+        # 2) then 分支代码
+        has_return = self.gen(then_node)
+
+        # 3) then 分支结束后跳过 else 的跳转
+        idx_next = len(self.quads)
+        self.emit('JUMP', None, None, None)
+        next_list = self.make_list(idx_next)
+
+        # 4) else 标签并回填 false 跳转
+        label_else = self.new_label()
+        self.emit('LABEL', None, None, label_else)
+        self.backpatch(false_list, label_else)
+
+        # 5) else 分支代码
+        if else_node:
+            self.gen(else_node.children[0] if else_node.children else else_node)
+
+        # 6) 结束标签并回填 then 跳转
+        label_end = self.new_label()
+        self.emit('LABEL', None, None, label_end)
+        self.backpatch(next_list, label_end)
+        return has_return
+
     def print_quads(self):
         """打印所有四元式"""
         print("\n生成的中间代码（四元式）：")
